@@ -4,7 +4,7 @@ package PDL::IO::Dcm;
 
 =head1 NAME
 
-PDL::IO::Dcm - Reads Siemens dicom files, sorts them and stores the result into piddles with meta-data
+PDL::IO::Dcm - Reads dicom files, sorts them and stores the result into piddles with headers 
 
 =head1 VERSION
 
@@ -17,6 +17,20 @@ our $VERSION = '0.01';
 
 =head1 SYNOPSIS
 
+
+This is inteded to read and sort dicom images created by medical imaging devices.
+
+	# loads all dicom files in this directory
+	my $dcms=load_dcm_dir($dir);
+	die "no data!" unless (keys %$dcms);
+	print "Read data; ProtIDs: ",join ', ',keys %$dcms,"\n";
+	# sort all individual dicoms into a hash of piddles.
+	my $data=parse_dcms($dcms);
+
+
+This software is tailored to Siemens MRI data based on the author's need. For 
+general usage, the read_dcm function should probably be moved to vendor specific
+plugins. 
 
 =head1 Some notes on Dicom fields and how they are stored/treated
 
@@ -36,20 +50,7 @@ work well.
 
 The header fields IceDims and IcePos are used for sorting datasets. 
 
-Piddles are created for each lProtID value.
-
-0020,000d Study Instance UID
-0020,000e Series Instance UID
-0020,0010 [Study ID]->
-0020,0011 [Series Number]->
-0020,0012 [Acquisition Number]->
-0020,0013 [Instance Number]-> 
-0020,0032 Image Position (Patient) - in mm? 
-0020,0037 Image Orientation (Patient) - 
-0020,0052 Frame of Reference UID
-0020,1040 [Position Reference Indicator]->
-0020,1041 [Slice Location]->
-
+Piddles are created for each lProtID value. 
 
 
 =head1 SUBROUTINES/METHODS
@@ -183,7 +184,8 @@ sub load_dcm_dir {
 		#say "file $file";
 		defined (my $p=read_dcm("$dname/$file")) ||die "Could not read $dname/$file!";
 		$n++;
-		my $pid=$p->hdr->{ascconv}->{lProtID};
+		#my $pid=$p->hdr->{ascconv}->{lProtID};
+		my $pid=$p->hdr->{dicom}->{"Series Number"};
 		#say "PID: $pid @pid";
 		unless (grep (/$pid/,@pid)) {
 			$dims{$pid}=zeroes(short,13);
@@ -194,7 +196,7 @@ sub load_dcm_dir {
 		say "orientation ",join(' ',@{$p->hdr->{dicom}->{'0020_0037'}});
 		say "Spacing ",join(' ',@{$p->hdr->{dicom}->{'0028_0030'}});
 #say "IceDims ",$p->hdr->{IceDims};
-		say "$n Pid $pid IceDims ",$p->hdr->{IceDims};
+		say "$n Series $pid IceDims ",$p->hdr->{IceDims};
 		my $iced=pdl(short,[split ('_',$p->hdr->{IceDims}=~s/X/1/er)]); #badvalue(short)/er)]);
 		#say "$file IceDims ",$iced;
 #$iced->badflag(1);
@@ -243,7 +245,7 @@ sub parse_dcms {
 		$data{$pid}=zeroes(ushort,$x,$y,$dims($order));
 		$data{$pid}->sethdr(dclone($ref->gethdr)); # populate the header
 		for my $dcm (values %stack) {
-			say $data{$pid}->info,list( $dcm->hdr->{IcePos}->($order));
+			#say $data{$pid}->info,list( $dcm->hdr->{IcePos}->($order));
 			$data{$pid}->(,,list $dcm->hdr->{IcePos}->($order)).=$dcm;
 		}
 		#say $data{$pid}->info;
@@ -308,3 +310,18 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 =cut
+
+__END__
+
+0020,000d Study Instance UID
+0020,000e Series Instance UID
+0020,0010 [Study ID]->
+0020,0011 [Series Number]->
+0020,0012 [Acquisition Number]->
+0020,0013 [Instance Number]-> 
+0020,0032 Image Position (Patient) - in mm? 
+0020,0037 Image Orientation (Patient) - 
+0020,0052 Frame of Reference UID
+0020,1040 [Position Reference Indicator]->
+0020,1041 [Slice Location]->
+

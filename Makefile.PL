@@ -14,8 +14,6 @@ WriteMakefile(
     MIN_PERL_VERSION => 5.006,
     CONFIGURE_REQUIRES => {
         'ExtUtils::MakeMaker' => 0,
-	#'PDL::IO::Nifti'=>0,
-	#'PDL::IO::Sereal'=>0,
     },
     BUILD_REQUIRES => {
         'Test::More' => 0,
@@ -26,6 +24,9 @@ WriteMakefile(
 	'DicomPack::IO::DicomReader'=>0,
 	'DicomPack::DB::DicomTagDict'=>0,
 	'DicomPack::DB::DicomVRDict'=>0,
+	#'PDL::IO::Nifti'=>0,
+	'PDL::IO::Sereal'=>0,
+	'Getopt::Tabular'=>0,
         #'ABC'              => 1.6,
         #'Foo::Bar::Module' => 5.0401,
     },
