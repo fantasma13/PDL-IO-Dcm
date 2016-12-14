@@ -11,7 +11,7 @@ WriteMakefile(
     LICENSE          => 'Artistic_2_0',
     PL_FILES		=>{},
     EXE_FILES         => ['bin/read_dcm.pl'],
-    MIN_PERL_VERSION => 5.10.0,
+    MIN_PERL_VERSION => 5.006,
     CONFIGURE_REQUIRES => {
         'ExtUtils::MakeMaker' => 0,
 	#'PDL::IO::Nifti'=>0,

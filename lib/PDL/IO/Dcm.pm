@@ -80,7 +80,7 @@ reads a dicom file and creates a piddle-with-header structure.
 use PDL;
 use PDL::NiceSlice;
 use List::MoreUtils; # qw{any};
-#use Data::Dumper;
+use Data::Dumper;
 use DicomPack::IO::DicomReader;
 use Storable qw/dclone/;
 use DicomPack::DB::DicomTagDict qw/getTag getTagDesc/;
@@ -93,6 +93,7 @@ use 5.10.0;
 
 our @ISA=qw/Exporter/;
 our @EXPORT_OK=qw/read_text_hdr read_dcm parse_dcms load_dcm_dir/;
+
 sub read_text_hdr {
     my $f=shift; # File
     my $self=shift;
@@ -116,42 +117,57 @@ sub read_text_hdr {
 
 sub read_dcm {
 	my $file=shift;
-	#say "file $file";
 	my $dcm=DicomPack::IO::DicomReader->new($file);
-	my $h=unpack('s',$dcm->getValue('Rows'));
-	my $w=unpack('s',$dcm->getValue('Columns'));
+	my $h=unpack('S',substr ($dcm->getValue('Rows','native'),3,2));
+	my $w=unpack('S',substr ($dcm->getValue('Columns','native'),3,2));
 	my $pdl=zeroes(ushort,$w,$h);
 	$pdl->make_physical;
-	${$pdl->get_dataref}=$dcm->getValue('PixelData');
+	${$pdl->get_dataref}=$dcm->getValue('PixelData','native');
 	$pdl->upd_data;
-	read_text_hdr($dcm->getValue ('0029,1020'),$pdl); # The protocol is in here
+	#say "Rows $h";
+	read_text_hdr($dcm->getValue ('0029,1020','native'),$pdl); # The protocol is in here
 	$pdl->hdr->{raw_dicom}=$dcm->getDicomField;
 	delete $pdl->hdr->{raw_dicom}->{'0029,1020'}; # Protocol
 	#delete $pdl->hdr->{raw_dicom}->{'0029,1010'}; # also big structure, not sure what
 		# Ice Dimension string: 13 numbers or X=undef
-	#say "Ice Dims ",$dcm->getValue('0029,1010')=~/ICE_Dims/;
-	my ($dims)=$dcm->getValue('0029,1010')=~/((_?(X|\d+)){13})/; 
-	#say "Raw Dims $dims";
-	$pdl->hdr->{IceDims}=$dims || die "No Ice Dims ",$pdl->hdr->{raw_dicom}->{'0029,1010'}; #[split '_',$dims{$pid}=~s/X/0/r];
+	#say "Ice Dims ",$dcm->getValue('0029,1010','native')=~/ICE_Dims/;
+	my @d=$dcm->getValue('0029,1010','native')=~/ICE_Dims.{92}((_?(X|\d+)){13})/s; 
+	my $dims=shift @d;
+	#say "Raw Dims @d";
+	$pdl->hdr->{IceDims}=$dims || die "No Ice Dims ",$file; #pdl->hdr->{raw_dicom}->{'0029,1010'}; #[split '_',$dims{$pid}=~s/X/0/r];
 	delete $pdl->hdr->{raw_dicom}->{'7fe0,0010'}; # Pixel data
 	for my $id (keys %{$pdl->hdr->{raw_dicom}}) {
 		my $tag=getTag($id);
 		my $packstring;
 		my $value;
+		$value=$dcm->getValue($id,'native'); 
+		my $vr=substr($value,0,2);
+		$packstring=join ('',(eval {getVR($vr)->{type}}||'a').'*'); 
+		#say "ID $id tag $tag ps $packstring ";
+		if ($vr eq 'XX' and defined $tag) {
+			#say "ID $id, Tag $$tag{desc} ", %{$$tag{vr}};
+			$packstring=join '',map {((getVR($_))->{type}||'a').'*'} 
+			keys %{$$tag{vr}};
+		}
+		$value=unpack ($packstring,substr($value,3,));
+		# split vector string into list
+		($value=[split /\\/,$value]) if $id =~ /0020,003[27]/; 
+			# position and orientation
+		($value=[split /\\/,$value]) if $id =~ /0028,0030/; # pixel size
+		#say "Image Rows $vr $packstring $value " if ($$tag{desc} eq 'Rows');
 		if (defined $tag) {
 			#say "ID $id, Tag $$tag{desc} ", %{$$tag{vr}};
 			$packstring=join '',map {((getVR($_))->{type}||'a').'*'} 
 			keys %{$$tag{vr}};
 			#say "Packstring $packstring";
-			$value=unpack($packstring,$dcm->getValue($id));
+			#$value=unpack($packstring,$dcm->getValue($id),'native');
 			#say "Vaule $value";
 			$pdl->hdr->{dicom}->{$tag->{desc}}=$value;
 		} else { 
-			$value=$dcm->getValue($id); 
 		}
-		$pdl->hdr->{dicom}->{$id=~s/([0-9a-fA-F]{4}),([0-9a-fA-F]{4})/Private_$1_$2/r}
+		$pdl->hdr->{dicom}->{$id=~s/([0-9a-fA-F]{4}),([0-9a-fA-F]{4})/$1_$2/r}
 			=$value;
-	}
+	} # for loop over dicom ids
 	return $pdl;
 }
 
@@ -164,20 +180,23 @@ sub load_dcm_dir {
 	opendir (my $dir, $dname) ||die "cannot open directory!";
 	for my $file (readdir ($dir)) {
 		next unless $file =~m/\.dcm$|\.IMA$/;
+		#say "file $file";
 		defined (my $p=read_dcm("$dname/$file")) ||die "Could not read $dname/$file!";
 		$n++;
 		my $pid=$p->hdr->{ascconv}->{lProtID};
-#say "PID: $pid @pid";
+		#say "PID: $pid @pid";
 		unless (grep (/$pid/,@pid)) {
 			$dims{$pid}=zeroes(short,13);
 			push @pid,$pid;
 		}
 		$dcms{$pid}={} unless ref $dcms{$pid};
-#say "pos ",$p->hdr->{raw_dicom}->{'0020,0032'};
+		say "pos ",join (' ',@{$p->hdr->{dicom}->{'0020_0032'}});
+		say "orientation ",join(' ',@{$p->hdr->{dicom}->{'0020_0037'}});
+		say "Spacing ",join(' ',@{$p->hdr->{dicom}->{'0028_0030'}});
 #say "IceDims ",$p->hdr->{IceDims};
 		say "$n Pid $pid IceDims ",$p->hdr->{IceDims};
 		my $iced=pdl(short,[split ('_',$p->hdr->{IceDims}=~s/X/1/er)]); #badvalue(short)/er)]);
-#say "IceDims ",$iced;
+		#say "$file IceDims ",$iced;
 #$iced->badflag(1);
 		$dims{$pid}.=$dims{$pid}*($dims{$pid}>=$iced)+$iced*($iced>$dims{$pid});
 		$p->hdr->{IcePos}=$iced--;
@@ -219,12 +238,20 @@ sub parse_dcms {
 #my $other=(@stack/$z,$t,$echoes/$ncoils);
 #my $data{$pid}=zeroes(ushort,$x,$y,$z,$echoes,$ncoils,$t,$other);
 		say "Creating piddle $x,$y, $dims";
-		$data{$pid}=zeroes(ushort,$x,$y,$dims(:8));
-		say $data{$pid}->info;
+		# dims: coil? echo? phase set t ? partition? slice? ? slice ? some_id
+		my $order=pdl[6,7,4,1,0,2,3];
+		$data{$pid}=zeroes(ushort,$x,$y,$dims($order));
 		$data{$pid}->sethdr(dclone($ref->gethdr)); # populate the header
 		for my $dcm (values %stack) {
-			$data{$pid}->(,,list $dcm->hdr->{IcePos}->(:8)).=$dcm;
+			say $data{$pid}->info,list( $dcm->hdr->{IcePos}->($order));
+			$data{$pid}->(,,list $dcm->hdr->{IcePos}->($order)).=$dcm;
 		}
+		#say $data{$pid}->info;
+		#say $data{$pid}->hdr->{dicom}->{Rows};
+		$data{$pid}->hdrcpy(1);
+		$data{$pid}=$data{$pid}->inplace->clump(2,3);
+		#say $data{$pid}->info;
+		#say $data{$pid}->hdr->{dicom}->{Rows};
 	} # for my $pid ...
 	\%data;
 }
