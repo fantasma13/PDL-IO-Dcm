@@ -3,6 +3,7 @@
 
 use PDL::IO::Dcm qw/load_dcm_dir parse_dcms/;
 use strict "vars";
+use PDL::NiceSlice;
 use PDL::IO::Sereal qw/wsereal/;
 use Getopt::Tabular;
 
@@ -55,4 +56,5 @@ for my $pid (keys %$data) {
 		print "Writing file $pre\_$pid.srl\n";
 		$$data{$pid}->wsereal("$pre\_$pid.srl"); 
 	}
+	$$data{$pid}->(,,0,0,0,0,0,0,0;-)->double->wpic("$pre\_$pid.png");
 }

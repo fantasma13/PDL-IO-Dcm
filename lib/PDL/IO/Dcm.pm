@@ -121,9 +121,12 @@ sub read_dcm {
 	my $dcm=DicomPack::IO::DicomReader->new($file);
 	my $h=unpack('S',substr ($dcm->getValue('Rows','native'),3,2));
 	my $w=unpack('S',substr ($dcm->getValue('Columns','native'),3,2));
-	my $pdl=zeroes(ushort,$w,$h);
+	my $data=$dcm->getValue('PixelData','native');
+	my $datatype= (substr($data,0,2));
+	say "datatype $datatype";
+	my $pdl=zeroes(ushort,$w,$h) if ($datatype =~/OW|XX/); 
 	$pdl->make_physical;
-	${$pdl->get_dataref}=$dcm->getValue('PixelData','native');
+	${$pdl->get_dataref}=substr($data,3);
 	$pdl->upd_data;
 	#say "Rows $h";
 	read_text_hdr($dcm->getValue ('0029,1020','native'),$pdl); # The protocol is in here
@@ -251,7 +254,7 @@ sub parse_dcms {
 		#say $data{$pid}->info;
 		#say $data{$pid}->hdr->{dicom}->{Rows};
 		$data{$pid}->hdrcpy(1);
-		$data{$pid}=$data{$pid}->inplace->clump(2,3);
+		$data{$pid}=$data{$pid}->clump(2,3)->clump(6,7);
 		#say $data{$pid}->info;
 		#say $data{$pid}->hdr->{dicom}->{Rows};
 	} # for my $pid ...
