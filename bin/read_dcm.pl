@@ -7,10 +7,11 @@ use PDL::NiceSlice;
 use PDL::IO::Sereal qw/wsereal/;
 use Getopt::Tabular;
 
-my ($nifti,$sereal,$usage);
+my ($nifti,$sereal,$usage,$t);
 
 my @opts=(
 	['-n','boolean',0,\$nifti, 'Create .nii and .txt files'],
+	['-t','boolean',0,\$t, 'serialise cardiac phases and time'],
 	['-s','boolean',1,\$sereal, 'Create sereal (defautl)'],
 	['-h', 'boolean',1,\$usage, 'print this help'],
 );
@@ -38,6 +39,10 @@ my $data=parse_dcms($dcms);
 # save all data to disk
 for my $pid (keys %$data) {
 	print "Processing $pid \n";
+	if ($t) {
+		$$data{$pid}=$$data{$pid}->clump(6,3);
+		print "-t: ",$$data{$pid}->info," \n";
+	}
 	if ($nifti) {
 		require (PDL::IO::Nifti) || die "Make sure PDL::IO::Nifti is installed!";
 		print "Creating Nifti $pid ",$$data{$pid}->info,"\n";

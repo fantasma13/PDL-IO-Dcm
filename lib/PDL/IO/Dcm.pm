@@ -243,7 +243,7 @@ sub parse_dcms {
 #my $other=(@stack/$z,$t,$echoes/$ncoils);
 #my $data{$pid}=zeroes(ushort,$x,$y,$z,$echoes,$ncoils,$t,$other);
 		say "Creating piddle $x,$y, $dims";
-		# dims: coil? echo? phase set t ? partition? slice? ? slice ? some_id
+		# dims: coil echo phase set t ? partition? slice? ? slice ? some_id
 		my $order=pdl[6,7,4,1,0,2,3];
 		$data{$pid}=zeroes(ushort,$x,$y,$dims($order));
 		$data{$pid}->sethdr(dclone($ref->gethdr)); # populate the header
@@ -254,6 +254,7 @@ sub parse_dcms {
 		#say $data{$pid}->info;
 		#say $data{$pid}->hdr->{dicom}->{Rows};
 		$data{$pid}->hdrcpy(1);
+		# serialise partitions/slices and phases/sets
 		$data{$pid}=$data{$pid}->clump(2,3)->clump(6,7);
 		#say $data{$pid}->info;
 		#say $data{$pid}->hdr->{dicom}->{Rows};
