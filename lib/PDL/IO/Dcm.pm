@@ -118,7 +118,7 @@ sub read_text_hdr {
 
 sub read_dcm {
 	my $file=shift;
-	my $dcm=DicomPack::IO::DicomReader->new($file);
+	my $dcm=DicomPack::IO::DicomReader->new($file) || return; 
 	my $h=unpack('S',substr ($dcm->getValue('Rows','native'),3,2));
 	my $w=unpack('S',substr ($dcm->getValue('Columns','native'),3,2));
 	my $data=$dcm->getValue('PixelData','native');
@@ -183,9 +183,10 @@ sub load_dcm_dir {
 	my $n=0;
 	opendir (my $dir, $dname) ||die "cannot open directory!";
 	for my $file (readdir ($dir)) {
-		next unless $file =~m/\.dcm$|\.IMA$/;
+		next unless (-f "$dname/$file"); # =~m/\.dcm$|\.IMA$/;
 		#say "file $file";
-		defined (my $p=read_dcm("$dname/$file")) ||die "Could not read $dname/$file!";
+		my $p=read_dcm("$dname/$file");
+		eval{$p->isa('PDL')} ||next;
 		$n++;
 		#my $pid=$p->hdr->{ascconv}->{lProtID};
 		my $pid=$p->hdr->{dicom}->{"Series Number"};
