@@ -103,7 +103,8 @@ for my $pid (keys %$data) {
 		print F "*** Parameters extracted from dicom fields \n";
 		for my $k (sort keys %{$$data{$pid}->hdr->{dicom}} ) {
 			print F printStruct( $$data{$pid}->hdr->{dicom}->{$k},$k,) ;	
-			#print F Dumper( $$data{$pid}->hdr->{dicom}->{$k}); }	
+			#print F Dumper( $$data{$pid}->hdr->{dicom}->{$k}); 
+		}	
 		print F "*** End of Parameters \n\n";
 		close F;
 	} 
