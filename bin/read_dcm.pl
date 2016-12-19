@@ -93,7 +93,7 @@ for my $pid (keys %$data) {
 		require (PDL::IO::Nifti) || die "Make sure PDL::IO::Nifti is installed!";
 		print "Creating Nifti $pid ",$$data{$pid}->info,"\n";
 		my $ni=PDL::IO::Nifti->new;
-		$ni->img($$data{$pid}->double); #->reorder(0,1,9,4,2,3,5,6,7,8,10));
+		$ni->img($$data{$pid}->double->(,-1:0,)); #->reorder(0,1,9,4,2,3,5,6,7,8,10));
 		$ni->write_nii($pre."_$pid.nii");
 		open F,">",$pre."_$pid.txt";
 		print F "### ASCCONV BEGIN ###\n";
