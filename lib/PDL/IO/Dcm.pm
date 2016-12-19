@@ -130,20 +130,23 @@ sub unpack_field{
 	my $tag=shift;
 	my $packstring;
 	my $value=shift;
+	my $return; #=shift;
 	#say "id $id value? ", ref( $value) unless ($id=~/0029/);
 	if (ref($value) eq 'ARRAY') {
 		my @vs=();
 		for my $n ($#$value) {
-			push @vs,unpack_field ("$id/$n",getTag("$id/$n"),$$value[$n]); 
+			push @vs,unpack_field ("$id/$n",getTag("$id/$n"),$$value[$n],$return); 
 		}
-		$value=\@vs;
+		$return=\@vs;
 	} elsif (ref ($value) eq 'HASH') {
 		my %vh=();
 		for my $v (keys %$value) {
-			$vh{$v}=unpack_field("$id/$v",getTag("$id/$v"),$$value{$v});		
+			(my $w=$v)=~s/([0-9a-fA-F]{4}),([0-9a-fA-F]{4})/$1_$2/ ;
+			#say "key $v ";
+			$vh{$w}=unpack_field("$id/$v",getTag("$id/$v"),$$value{$v},$return);		
 			#say "hash $id/$v:  $vh{$v} " unless $id=~/0029/;
 		}
-		$value=\%vh;
+		$return=\%vh;
 	} else {
 	my $vr=substr($value,0,2);
 	$packstring=join ('',(eval {getVR($vr)->{type}}||'a').'*'); 
@@ -153,15 +156,15 @@ sub unpack_field{
 		$packstring=join '',map {((getVR($_))->{type}||'a').'*'} 
 			keys %{$$tag{vr}};
 	}
-	$value=unpack ($packstring,substr($value,3,));
+	$return=unpack ($packstring,substr($value,3,));
 	# split vector string into list
-	($value=[split /\\/,$value]) if $id =~ /0020,003[27]/; 
+	#($value=[split /\\/,$value]) if $id =~ /0020,003[27]/; 
 	# position and orientation
-	($value=[split /\\/,$value]) if $id =~ /0028,0030/; # pixel size
+	#($value=[split /\\/,$value]) if $id =~ /0028,0030/; # pixel size
 	#say "Image Rows $vr $packstring $value " if ($$tag{desc} eq 'Rows');
 	}
 	#say "ID $id value $value";
-	$value;
+	$return;
 }
 
 sub read_dcm {
@@ -191,6 +194,7 @@ sub read_dcm {
 	for my $id (keys %{$pdl->hdr->{raw_dicom}}) {
 		my $tag=getTag($id);
 		my $value=unpack_field($id,$tag,$dcm->getValue($id,'native')); 
+		#say "id $id v $value";
 		if (defined $tag) {
 			#say "ID $id, Tag $$tag{desc} ", %{$$tag{vr}};
 			#$packstring=join '',map {((getVR($_))->{type}||'a').'*'} 
@@ -212,6 +216,7 @@ sub load_dcm_dir {
 	my @pid;
 	my $dname=shift;
 	my %dims; 
+	my $id=shift; # field by which to split
 	my $n=0;
 	opendir (my $dir, $dname) ||die "cannot open directory!";
 	for my $file (readdir ($dir)) {
@@ -221,16 +226,18 @@ sub load_dcm_dir {
 		eval{$p->isa('PDL')} ||next;
 		$n++;
 		#my $pid=$p->hdr->{ascconv}->{lProtID};
-		my $pid=$p->hdr->{dicom}->{"Series Number"};
+		no PDL::NiceSlice;
+		my $pid=$id->($p); 
+		use PDL::NiceSlice;
 		#say "PID: $pid @pid";
 		unless (grep (/$pid/,@pid)) {
 			$dims{$pid}=zeroes(short,13);
 			push @pid,$pid;
 		}
 		$dcms{$pid}={} unless ref $dcms{$pid};
-		say "pos ",join (' ',@{$p->hdr->{dicom}->{'0020_0032'}});
-		say "orientation ",join(' ',@{$p->hdr->{dicom}->{'0020_0037'}});
-		say "Spacing ",join(' ',@{$p->hdr->{dicom}->{'0028_0030'}});
+		say "pos ",$p->hdr->{dicom}->{'0020_0032'}=~s/\\/ /r;
+		say "orientation ",$p->hdr->{dicom}->{'0020_0037'}=~s/\\/ /r;
+		say "Spacing ",$p->hdr->{dicom}->{'0028_0030'}=~s/\\/ /r;
 #say "IceDims ",$p->hdr->{IceDims};
 		say "$n Series $pid IceDims ",$p->hdr->{IceDims};
 		my $iced=pdl(short,[split ('_',$p->hdr->{IceDims}=~s/X/1/er)]); #badvalue(short)/er)]);
@@ -284,6 +291,7 @@ sub parse_dcms {
 		$data{$pid}->hdr->{diff}={};
 		for my $key (@key_list) {
 			$data{$pid}->hdr->{dicom}->{$key}=zeroes(list $dims($order));
+			#$data{$pid}->hdr->{dicom}->{$key}.=$ref->hdr->{dicom}->{$key};
 			say "$key ",$data{$pid}->hdr->{dicom}->{$key}->info;
 		}
 		$data{$pid}->hdr->{dicom}->{'Image Orientation (Patient)'}=zeroes(6,list $dims($order));
@@ -298,11 +306,11 @@ sub parse_dcms {
 					.=$dcm->hdr->{dicom}->{$key};
 			}
 			$data{$pid}->hdr->{dicom}->{'Image Orientation (Patient)'}->(,list $dcm->hdr->{IcePos}->($order))
-					.=pdl ($dcm->hdr->{dicom}->{'Image Orientation (Patient)'});
+					.=pdl (split /\\/,$dcm->hdr->{dicom}->{'Image Orientation (Patient)'});
 			$data{$pid}->hdr->{dicom}->{'Pixel Spacing'}->(,list $dcm->hdr->{IcePos}->($order))
-					.=pdl ($dcm->hdr->{dicom}->{'Pixel Spacing'});
+					.=pdl (split /\\/,$dcm->hdr->{dicom}->{'Pixel Spacing'});
 			$data{$pid}->hdr->{dicom}->{'Image Position (Patient)'}->(,list $dcm->hdr->{IcePos}->($order))
-					.=pdl ($dcm->hdr->{dicom}->{'Image Position (Patient)'});
+					.=pdl (split /\\/,$dcm->hdr->{dicom}->{'Image Position (Patient)'});
 			for my $field (keys %{$dcm->hdr->{dicom}}) {
 				if ($dcm->hdr->{dicom}->{$field} ne $ref->hdr->{dicom}->{$field}) {
 					$data{$pid}->hdr->{diff}->{$field}={}
@@ -312,7 +320,7 @@ sub parse_dcms {
 				}
 			}
 		}
-		say "The following keys differ from ref:\n\t",join ", ",sort keys (%{$data{$pid}->hdr->{diff}});
+		#say "The following keys differ from ref:\n\t",join ", ",sort keys (%{$data{$pid}->hdr->{diff}});
 		#say Dumper $data{$pid}->hdr->{diff};
 		#say $data{$pid}->info;
 		#say $data{$pid}->hdr->{dicom}->{Rows};
@@ -391,4 +399,3 @@ __END__
 0020,0052 Frame of Reference UID
 0020,1040 [Position Reference Indicator]->
 0020,1041 [Slice Location]->
-
