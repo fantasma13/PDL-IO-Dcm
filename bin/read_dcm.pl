@@ -50,10 +50,14 @@ for my $pid (keys %$data) {
 		$ni->img($$data{$pid}->double); #->reorder(0,1,9,4,2,3,5,6,7,8,10));
 		$ni->write_nii($pre."_$pid.nii");
 		open F,">",$pre."_$pid.txt";
+		print F "### ASCCONV BEGIN ###\n";
 		for my $k (sort keys %{$$data{$pid}->hdr->{ascconv}} ) 
 			{print F "$k = ",$$data{$pid}->hdr->{ascconv}->{$k},"\n" }
+		print F "### ASCCONV END ###\n";
+		print F "*** Parameters extracted from dicom fields \n";
 		for my $k (sort keys %{$$data{$pid}->hdr->{dicom}} ) 
 			{print F "$k: ",$$data{$pid}->hdr->{dicom}->{$k},"\n" }	
+		print F "*** End of Parameters \n";
 		close F;
 	} 
 	print "Nifti? $nifti Sereal? $sereal write? ",((! $sereal) and $nifti),"\n";
