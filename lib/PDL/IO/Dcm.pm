@@ -141,9 +141,9 @@ sub unpack_field{
 	} elsif (ref ($value) eq 'HASH') {
 		my %vh=();
 		for my $v (keys %$value) {
-			(my $w=$v)=~s/([0-9a-fA-F]{4}),([0-9a-fA-F]{4})/$1_$2/ ;
+			#(my $w=$v)=~s/([0-9a-fA-F]{4}),([0-9a-fA-F]{4})/$1_$2/ ;
 			#say "key $v ";
-			$vh{$w}=unpack_field("$id/$v",getTag("$id/$v"),$$value{$v},$return);		
+			$vh{$v}=unpack_field("$id/$v",getTag("$id/$v"),$$value{$v},$return);		
 			#say "hash $id/$v:  $vh{$v} " unless $id=~/0029/;
 		}
 		$return=\%vh;
@@ -205,7 +205,7 @@ sub read_dcm {
 			$pdl->hdr->{dicom}->{$tag->{desc}}=$value;
 		} else { 
 		}
-		$pdl->hdr->{dicom}->{$id=~s/([0-9a-fA-F]{4}),([0-9a-fA-F]{4})/$1_$2/r}
+		$pdl->hdr->{dicom}->{$id} #=~s/([0-9a-fA-F]{4}),([0-9a-fA-F]{4})/$1_$2/r}
 			=$value;
 	} # for loop over dicom ids
 	return $pdl;
@@ -235,9 +235,9 @@ sub load_dcm_dir {
 			push @pid,$pid;
 		}
 		$dcms{$pid}={} unless ref $dcms{$pid};
-		say "pos ",$p->hdr->{dicom}->{'0020_0032'}=~s/\\/ /r;
-		say "orientation ",$p->hdr->{dicom}->{'0020_0037'}=~s/\\/ /r;
-		say "Spacing ",$p->hdr->{dicom}->{'0028_0030'}=~s/\\/ /r;
+		say "pos ",$p->hdr->{dicom}->{'0020,0032'}=~s/\\/ /r;
+		say "orientation ",$p->hdr->{dicom}->{'0020,0037'}=~s/\\/ /r;
+		say "Spacing ",$p->hdr->{dicom}->{'0028,0030'}=~s/\\/ /r;
 #say "IceDims ",$p->hdr->{IceDims};
 		say "$n Series $pid IceDims ",$p->hdr->{IceDims};
 		my $iced=pdl(short,[split ('_',$p->hdr->{IceDims}=~s/X/1/er)]); #badvalue(short)/er)]);
