@@ -8,11 +8,11 @@ PDL::IO::Dcm - Reads dicom files, sorts them and stores the result into piddles 
 
 =head1 VERSION
 
-Version 0.01
+Version 0.9
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.9';
 
 
 =head1 SYNOPSIS
@@ -305,12 +305,15 @@ sub parse_dcms {
 				$data{$pid}->hdr->{dicom}->{$key}->(list $dcm->hdr->{IcePos}->($order))
 					.=$dcm->hdr->{dicom}->{$key};
 			}
-			$data{$pid}->hdr->{dicom}->{'Image Orientation (Patient)'}->(,list $dcm->hdr->{IcePos}->($order))
-					.=pdl (split /\\/,$dcm->hdr->{dicom}->{'Image Orientation (Patient)'});
-			$data{$pid}->hdr->{dicom}->{'Pixel Spacing'}->(,list $dcm->hdr->{IcePos}->($order))
-					.=pdl (split /\\/,$dcm->hdr->{dicom}->{'Pixel Spacing'});
-			$data{$pid}->hdr->{dicom}->{'Image Position (Patient)'}->(,list $dcm->hdr->{IcePos}->($order))
-					.=pdl (split /\\/,$dcm->hdr->{dicom}->{'Image Position (Patient)'});
+			$data{$pid}->hdr->{dicom}->{'Image Orientation (Patient)'}
+				->(,list $dcm->hdr->{IcePos}->($order))
+				.=pdl (split /\\/,$dcm->hdr->{dicom}->{'Image Orientation (Patient)'});
+			$data{$pid}->hdr->{dicom}->{'Pixel Spacing'}
+				->(,list $dcm->hdr->{IcePos}->($order))
+				.=pdl (split /\\/,$dcm->hdr->{dicom}->{'Pixel Spacing'});
+			$data{$pid}->hdr->{dicom}->{'Image Position (Patient)'}
+				->(,list $dcm->hdr->{IcePos}->($order))
+				.=pdl (split /\\/,$dcm->hdr->{dicom}->{'Image Position (Patient)'});
 			for my $field (keys %{$dcm->hdr->{dicom}}) {
 				if ($dcm->hdr->{dicom}->{$field} ne $ref->hdr->{dicom}->{$field}) {
 					$data{$pid}->hdr->{diff}->{$field}={}
