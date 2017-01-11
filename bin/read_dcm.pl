@@ -9,6 +9,7 @@ use Getopt::Tabular;
 use Data::Dumper;
 
 
+# copied and modified from stackoverflow or perlmonks thread (can't remember atm)
 sub printStruct {
 	my ($struct,$structName,$pre)=@_;
 #    print "-----------------\n" unless (defined($pre));
@@ -73,7 +74,9 @@ my $pre=shift;
 
 # how should we split series?
 my $id=sub {$_[0]->hdr->{ascconv}->{"lProtID"};};
-$id=sub {$_[0]->hdr->{dicom}->{"Series Number"};} if $d;
+$id=sub {my $ret=$_[0]->hdr->{dicom}->{"Series Number"}; 
+	$ret=~ s/^\s+|\s+$//g; $ret;} if $d;
+#$id=~ s/^\s+|\s+$//g;
 # loads all dicom files in this directory
 my $dcms=load_dcm_dir($dir,$id);
 die "no data!" unless (keys %$dcms);
@@ -83,7 +86,7 @@ my $data=parse_dcms($dcms);
 
 # save all data to disk
 for my $pid (keys %$data) {
-	print "Processing $pid \n";
+	print "Processing $pid.\n";
 	if ($t) {
 		print "-t: ",$$data{$pid}->info," \n";
 		$$data{$pid}=$$data{$pid}->clump(6,3);
@@ -113,5 +116,5 @@ for my $pid (keys %$data) {
 		print "Writing file $pre\_$pid.srl\n";
 		$$data{$pid}->wsereal("$pre\_$pid.srl"); 
 	}
-	$$data{$pid}->(,,0,0,0,0,0,0,0;-)->double->wpic("$pre\_$pid.png");
+	#$$data{$pid}->(,,0,0,0,0,0,0,0;-)->double->wpic("$pre\_$pid.png");
 }
