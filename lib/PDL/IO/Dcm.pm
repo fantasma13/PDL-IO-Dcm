@@ -23,7 +23,8 @@ This is inteded to read and sort dicom images created by medical imaging devices
 Either use something like the following from within your module/application
 
 	# loads all dicom files in this directory
-	my $dcms=load_dcm_dir($dir);
+	# $id is a code reference returning e.g. the Series Number
+	my $dcms=load_dcm_dir($dir,$id); 
 	die "no data!" unless (keys %$dcms);
 	print "Read data; ProtIDs: ",join ', ',keys %$dcms,"\n";
 	# sort all individual dicoms into a hash of piddles.
@@ -51,9 +52,10 @@ protocol. The important part is parsed into ascconv.
 Keys are parsed into a hash under the dicom key using the DicomPack module(s)
 to unpack. 
 
-The header fields IceDims and IcePos are used for sorting datasets. 
+The header fields IceDims and IcePos are used for sorting datasets. The field
+Dimensions lists the sorted names of dimensions. 
 
-Piddles are created for each lProtID value. 
+Piddles are created for each lProtID or Series Number value. 
 
 
 =head1 SUBROUTINES/METHODS
@@ -67,7 +69,9 @@ quoting of hash keys required!
 =head2 load_dcm_dir
 
 reads all dicom files in a dicrectory and returns a hash of piddles containing
-sorted N-D data sets. Uses ascconv field lProtID as keys. 
+sorted N-D data sets. Uses a code reference to access the field by which to split.
+See read_dcm.pl for details. Currently, the ascconv field lProtID or dicom Series Number are
+used as keys. 
 
 =head2 parse_dcms 
 
@@ -83,6 +87,12 @@ unpacks dicom fields and walks subfield structures recursively.
 =head2 read_dcm
 
 reads a dicom file and creates a piddle-with-header structure.
+
+=head1 TODO 
+
+write tests! 
+
+Generalise to other modalities. This will be done based on request or as needed.
 
 =cut
 
