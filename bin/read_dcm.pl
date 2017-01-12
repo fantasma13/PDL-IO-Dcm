@@ -90,6 +90,7 @@ for my $pid (keys %$data) {
 	if ($t) {
 		print "-t: ",$$data{$pid}->info," \n";
 		$$data{$pid}=$$data{$pid}->clump(6,3);
+		pop @{$$data{$pid}->hdr->{Dimensions}};
 		print "-t: ",$$data{$pid}->info," \n";
 	}
 	if ($nifti) {
@@ -99,6 +100,8 @@ for my $pid (keys %$data) {
 		$ni->img($$data{$pid}->double->(,-1:0,)); #->reorder(0,1,9,4,2,3,5,6,7,8,10));
 		$ni->write_nii($pre."_$pid.nii");
 		open F,">",$pre."_$pid.txt";
+		print F "## Generated using PDL::IO::Dcm\n\n";
+		print F "dimensions ",join ' ',$$data{$pid}->hdr->{Dimensions};
 		print F "### ASCCONV BEGIN ###\n";
 		for my $k (sort keys %{$$data{$pid}->hdr->{ascconv}} ) 
 			{print F "$k = ",$$data{$pid}->hdr->{ascconv}->{$k},"\n" }

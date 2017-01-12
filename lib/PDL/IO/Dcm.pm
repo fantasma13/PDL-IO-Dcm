@@ -20,6 +20,8 @@ our $VERSION = '0.9';
 
 This is inteded to read and sort dicom images created by medical imaging devices.
 
+Either use something like the following from within your module/application
+
 	# loads all dicom files in this directory
 	my $dcms=load_dcm_dir($dir);
 	die "no data!" unless (keys %$dcms);
@@ -27,10 +29,12 @@ This is inteded to read and sort dicom images created by medical imaging devices
 	# sort all individual dicoms into a hash of piddles.
 	my $data=parse_dcms($dcms);
 
+or use the read_dcm.pl script to convert dicom files in a directory to serealised
+piddles (PDL::IO::Sereal) or NIFTI files with separate text headers (PDL::IO::Nifti).
 
-This software is tailored to Siemens MRI data based on the author's need. For 
-general usage, the read_dcm function should probably be moved to vendor specific
-plugins. 
+This software is tailored to Siemens MRI data based on the author's needs. For 
+general usage, the read_dcm function should and probably will be moved to
+vendor/modality specific plugin modules in future releases.
 
 =head1 Some notes on Dicom fields and how they are stored/treated
 
@@ -44,9 +48,8 @@ miniheaders with dimension information - and position in matrix
 0029,1020 is deleted from the header, it is big, containing the whole
 protocol. The important part is parsed into ascconv.
 
-Keys are parsed into a hash under the dicom key using DicomPack
-methods to unpack. For more complex structures this does not seem to
-work well.
+Keys are parsed into a hash under the dicom key using the DicomPack module(s)
+to unpack. 
 
 The header fields IceDims and IcePos are used for sorting datasets. 
 
@@ -74,7 +77,7 @@ based on lProtID and the ICE_Dims field in 0029_1010. Returns a hash of piddles
 
 =head2 unpack_field
 
-unpacks dicom fields and Walks subfield structures recursively.
+unpacks dicom fields and walks subfield structures recursively.
 
 
 =head2 read_dcm
@@ -289,6 +292,7 @@ sub parse_dcms {
 		$data{$pid}=zeroes(ushort,$x,$y,$dims($order));
 		$data{$pid}->sethdr(dclone($ref->gethdr)); # populate the header
 		$data{$pid}->hdr->{diff}={};
+		$data{$pid}->hdr->{Dimensions}=[qw/x y z t echo channel set/];
 		for my $key (@key_list) {
 			$data{$pid}->hdr->{dicom}->{$key}=zeroes(list $dims($order));
 			#$data{$pid}->hdr->{dicom}->{$key}.=$ref->hdr->{dicom}->{$key};
