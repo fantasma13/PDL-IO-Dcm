@@ -78,12 +78,20 @@ reads all dicom files in a dicrectory and returns a hash of piddles containing
 sorted N-D data sets. 
 
 Fields in the options hash include:
-=over 10
-=item id Uses a code reference to access the field by which to split. See
-read_dcm.pl for details. Currently, the ascconv field lProtID or dicom Series
-Number are used as keys. 
-=item sp Split slice groups, otherwise they are stacked together if xy-dims match, even transposed.
+
+=over 
+
+=item id: 
+
+Uses a code reference to access the field by which to split. See read_dcm.pl for details. Currently, the ascconv field lProtID or dicom Series Number are used as keys. 
+
+=item sp: 
+
+Split slice groups, otherwise they are stacked together if xy-dims match, even transposed.
+
 =back 
+
+
 =head2 parse_dcms 
 
 Parses and sorts a hash of hashes of dicoms (such as returned by load_dcm_dir)
@@ -119,7 +127,7 @@ use Exporter;
 #use PDL::IO::Nifti;
 use strict;
 #use PDL::IO::Sereal;
-use 5.10.0;
+#use 5.10.0;
 
 our @ISA=qw/Exporter/;
 our @EXPORT_OK=qw/read_text_hdr read_dcm parse_dcms load_dcm_dir/;
@@ -271,8 +279,8 @@ sub load_dcm_dir {
 		no PDL::NiceSlice;
 		my $pid=$id->($p); # Call to subroutine reference 
 		#say "PID: $pid @pid";
-		say $p->info;
-		say "ID $pid Instance number ",$p->hdr->{dicom}->{'Instance Number'};
+		#say $p->info;
+		#say "ID $pid Instance number ",$p->hdr->{dicom}->{'Instance Number'};
 		$dcms{$pid}={} unless ref $dcms{$pid};
 		my $ref =$refs{$pid}; 
 		#say "ref ID: ",$id->($ref)," ref Instance number ",$ref->hdr->{dicom}->{'Instance Number'},
@@ -280,10 +288,10 @@ sub load_dcm_dir {
 		if (defined $ref) {
 		unless ( is_equal($ref,$p )) {
 			if ( !$sp and is_equal($ref,$p->transpose,'d')) {
-				say "Split? $sp; ", ( !$sp and is_equal($ref,$p->transpose,'d'));
+				#say "Split? $sp; ", ( !$sp and is_equal($ref,$p->transpose,'d'));
 				$p->hdr->{tp}=1;
 			} else {
-				say "Difference! $sp";
+				#say "Difference! $sp";
 				my $flag=0;
 				my $n='a';
 				my $nid;
@@ -308,7 +316,7 @@ sub load_dcm_dir {
 		} # defined $ref
 		use PDL::NiceSlice;
 		unless (grep (/^$pid$/,@pid)) {
-			say "PID: $pid";
+			#say "PID: $pid";
 			$dims{$pid}=zeroes(short,13);
 			push @pid,$pid;
 			$refs{$pid}=$p;
@@ -317,7 +325,7 @@ sub load_dcm_dir {
 		#say "orientation ",$p->hdr->{dicom}->{'0020,0037'}=~s/\\/ /r;
 		#say "Spacing ",$p->hdr->{dicom}->{'0028,0030'}=~s/\\/ /r;
 #say "IceDims ",$p->hdr->{IceDims};
-		say "$n Series $pid IceDims ",$p->hdr->{IceDims};
+		#say "$n Series $pid IceDims ",$p->hdr->{IceDims};
 		(my $str=$p->hdr->{IceDims})=~s/X/1/e;
 		my @d=split ('_',$str);
 		my $iced=pdl(short,@d); #badvalue(short)/er)]);
@@ -352,7 +360,7 @@ sub parse_dcms {
 		my $x=$ref->hdr->{dicom}->{Columns} ; 
 		die "No $x ",$ref->info unless $x;
 		my $y=$ref->hdr->{dicom}->{Rows};
-		print "ID: $pid dims $dims transpose? ",$ref->hdr->{tp},"\n";
+		#print "ID: $pid dims $dims transpose? ",$ref->hdr->{tp},"\n";
 		# dims: coil echo phase set t ? partition? slice? ? slice ? some_id
 		my $order=pdl[6,7,4,1,0,2,3];
 		if ($ref->hdr->{tp}) { $data{$pid}=zeroes(ushort,$y,$x,$dims($order));}
@@ -371,7 +379,7 @@ sub parse_dcms {
 		for my $dcm (values %stack) {
 			#say $data{$pid}->info,list( $dcm->hdr->{IcePos}->($order));
 			#say "$x $y ",$ref->info;
-			say "ID $pid: Transpose? ",$dcm->hdr->{tp},$dcm->info;
+			#say "ID $pid: Transpose? ",$dcm->hdr->{tp},$dcm->info;
 			if ($dcm->hdr->{tp}) {
 				$data{$pid}->(,,list $dcm->hdr->{IcePos}->($order)).=$dcm->transpose;}
 			else {$data{$pid}->(,,list $dcm->hdr->{IcePos}->($order)).=$dcm;}

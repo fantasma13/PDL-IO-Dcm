@@ -99,11 +99,11 @@ my $data=parse_dcms($dcms);
 # save all data to disk
 for my $pid (keys %$data) {
 	print "Processing $pid.\n";
-	if ($t) {
-		print "-t: ",$$data{$pid}->info," \n";
+	if ($t) { # use Dicom series number
+		#print "-t: ",$$data{$pid}->info," \n";
 		$$data{$pid}=$$data{$pid}->clump(6,3);
 		pop @{$$data{$pid}->hdr->{Dimensions}};
-		print "-t: ",$$data{$pid}->info," \n";
+		#print "-t: ",$$data{$pid}->info," \n";
 	}
 	if ($nifti) {
 		require (PDL::IO::Nifti) || die "Make sure PDL::IO::Nifti is installed!";
