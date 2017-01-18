@@ -307,7 +307,8 @@ sub load_dcm_dir {
 		}
 		} # defined $ref
 		use PDL::NiceSlice;
-		unless (grep (/$pid/,@pid)) {
+		unless (grep (/^$pid$/,@pid)) {
+			say "PID: $pid";
 			$dims{$pid}=zeroes(short,13);
 			push @pid,$pid;
 			$refs{$pid}=$p;
@@ -328,7 +329,7 @@ sub load_dcm_dir {
 	}
 	for my $id (@pid) {
 		$dcms{$id}->{dims}=$dims{$id}->copy;
-		print "id $id $dims{$id}\n";
+		print "Set dims: id $id, $dims{$id}\n";
 	}
 	\%dcms;
 }
@@ -344,6 +345,7 @@ sub parse_dcms {
 		#next unless (ref $stack{dims} eq 'HASH');
 		#say keys %stack;
 		my $dims =$stack{dims};
+		die "No dims $pid " unless eval {$dims->isa('PDL')};
 		delete $stack{dims};
 		my $ref=$stack{(keys %stack)[0]};
 		#my $z=$ref->hdr->{ascconv}->{sSliceArray_lSize};
@@ -368,8 +370,8 @@ sub parse_dcms {
 		$data{$pid}->hdr->{dicom}->{'Pixel Spacing'}=zeroes(2,list $dims($order));
 		for my $dcm (values %stack) {
 			#say $data{$pid}->info,list( $dcm->hdr->{IcePos}->($order));
-			say "$x $y ",$ref->info;
-			say "Transpose? ",$dcm->hdr->{tp},$dcm->info;
+			#say "$x $y ",$ref->info;
+			say "ID $pid: Transpose? ",$dcm->hdr->{tp},$dcm->info;
 			if ($dcm->hdr->{tp}) {
 				$data{$pid}->(,,list $dcm->hdr->{IcePos}->($order)).=$dcm->transpose;}
 			else {$data{$pid}->(,,list $dcm->hdr->{IcePos}->($order)).=$dcm;}
