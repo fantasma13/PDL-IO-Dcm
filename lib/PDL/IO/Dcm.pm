@@ -12,7 +12,7 @@ Version 0.9
 
 =cut
 
-our $VERSION = '0.9';
+our $VERSION = '0.9002';
 
 
 =head1 SYNOPSIS
@@ -60,19 +60,30 @@ Piddles are created for each lProtID or Series Number value.
 
 =head1 SUBROUTINES/METHODS
 
+=head2 is_equal ($dcm1,$dcm2,$pattern)
+
+This is used to check if two dicoms can be stacked based on matrix size, orientation and pixel spacing.
+
+If $pattern matches /d/, only dims are checked
+
 =head2 read_text_hdr
 
 parses the ASCCONV part of Siemens data header into the ascconv field of the
 piddle header. All special characters except [a-z0-9]i are converted to _ -- no
 quoting of hash keys required!
 
-=head2 load_dcm_dir
+=head2 load_dcm_dir ( $dir,\%options)
 
 reads all dicom files in a dicrectory and returns a hash of piddles containing
-sorted N-D data sets. Uses a code reference to access the field by which to split.
-See read_dcm.pl for details. Currently, the ascconv field lProtID or dicom Series Number are
-used as keys. 
+sorted N-D data sets. 
 
+Fields in the options hash include:
+=over 10
+=item id Uses a code reference to access the field by which to split. See
+read_dcm.pl for details. Currently, the ascconv field lProtID or dicom Series
+Number are used as keys. 
+=item sp Split slice groups, otherwise they are stacked together if xy-dims match, even transposed.
+=back 
 =head2 parse_dcms 
 
 Parses and sorts a hash of hashes of dicoms (such as returned by load_dcm_dir)
@@ -187,7 +198,7 @@ sub read_dcm {
 	my $w=unpack('S',substr ($dcm->getValue('Columns','native'),3,2));
 	my $data=$dcm->getValue('PixelData','native');
 	my $datatype= (substr($data,0,2));
-	say "datatype $datatype";
+	#say "datatype $datatype";
 	my $pdl=zeroes(ushort,$w,$h) if ($datatype =~/OW|XX/); 
 	$pdl->make_physical;
 	${$pdl->get_dataref}=substr($data,3);
@@ -223,14 +234,32 @@ sub read_dcm {
 	} # for loop over dicom ids
 	return $pdl;
 }
-
+sub is_equal {
+	my $a=shift;
+	my $b=shift;
+	my $opt=shift;
+	#say "dims ", any $a->shape-$b->shape,', ', # they have equal dimensions
+		#"spacing ",$a->hdr->{dicom}->{'Pixel Spacing'} ,' ne ', $b->hdr->{dicom}->{'Pixel Spacing'},', ',
+		#"orientation ",$a->hdr->{dicom}->{'Image Orientation (Patient)'} ,' ne ', $b->hdr->{dicom}->{'Image Orientation (Patient)'};
+	return if (any ($a->shape-$b->shape)); # they have equal dimensions
+	#say "is_equal: dims ok";
+	return 1 if ($opt =~/d/);
+	return if $a->hdr->{dicom}->{'Pixel Spacing'} ne $b->hdr->{dicom}->{'Pixel Spacing'};
+	#say "is_equal: spacing ok";
+	return if $a->hdr->{dicom}->{'Image Orientation (Patient)'} ne $b->hdr->{dicom}->{'Image Orientation (Patient)'};
+	#say "is_equal: orientation ok";
+	1;
+}
 sub load_dcm_dir {
 	my %dcms; #([]);
 	my @pid;
 	my $dname=shift;
 	my %dims; 
-	my $id=shift; # field by which to split
+	my $opt=shift; # field by which to split
+	my $id=$$opt{id};
+	my $sp=$$opt{sp};
 	my $n=0;
+	my %refs; # reference images for each stack
 	opendir (my $dir, $dname) ||die "cannot open directory!";
 	for my $file (readdir ($dir)) {
 		next unless (-f "$dname/$file"); # =~m/\.dcm$|\.IMA$/;
@@ -240,20 +269,57 @@ sub load_dcm_dir {
 		$n++;
 		#my $pid=$p->hdr->{ascconv}->{lProtID};
 		no PDL::NiceSlice;
-		my $pid=$id->($p); 
-		use PDL::NiceSlice;
+		my $pid=$id->($p); # Call to subroutine reference 
 		#say "PID: $pid @pid";
+		say $p->info;
+		say "ID $pid Instance number ",$p->hdr->{dicom}->{'Instance Number'};
+		$dcms{$pid}={} unless ref $dcms{$pid};
+		my $ref =$refs{$pid}; 
+		#say "ref ID: ",$id->($ref)," ref Instance number ",$ref->hdr->{dicom}->{'Instance Number'},
+			#$ref->info,$p->info, "diff? ",is_equal($ref,$p);
+		if (defined $ref) {
+		unless ( is_equal($ref,$p )) {
+			if ( !$sp and is_equal($ref,$p->transpose,'d')) {
+				say "Split? $sp; ", ( !$sp and is_equal($ref,$p->transpose,'d'));
+				$p->hdr->{tp}=1;
+			} else {
+				say "Difference! $sp";
+				my $flag=0;
+				my $n='a';
+				my $nid;
+				do {
+					$nid=$id->($p).$n;
+					if (ref $dcms{$nid} eq 'HASH'){ # group
+						for my $r2 (values %{$dcms{$nid}}){
+							$flag=is_equal($r2,$p);
+					#		say "r2 vs. p id $nid ",$r2->info,$p->info;
+							last unless $flag;
+						}
+					} else {
+						$dcms{$nid}={};
+						$pid=$nid;
+						$flag=1;
+					}
+					$n++;
+				} until $flag;
+				$pid=$nid;
+			}
+		}
+		} # defined $ref
+		use PDL::NiceSlice;
 		unless (grep (/$pid/,@pid)) {
 			$dims{$pid}=zeroes(short,13);
 			push @pid,$pid;
+			$refs{$pid}=$p;
 		}
-		$dcms{$pid}={} unless ref $dcms{$pid};
-		say "pos ",$p->hdr->{dicom}->{'0020,0032'}=~s/\\/ /r;
-		say "orientation ",$p->hdr->{dicom}->{'0020,0037'}=~s/\\/ /r;
-		say "Spacing ",$p->hdr->{dicom}->{'0028,0030'}=~s/\\/ /r;
+		#say "pos ",$p->hdr->{dicom}->{'0020,0032'}=~s/\\/ /r;
+		#say "orientation ",$p->hdr->{dicom}->{'0020,0037'}=~s/\\/ /r;
+		#say "Spacing ",$p->hdr->{dicom}->{'0028,0030'}=~s/\\/ /r;
 #say "IceDims ",$p->hdr->{IceDims};
 		say "$n Series $pid IceDims ",$p->hdr->{IceDims};
-		my $iced=pdl(short,[split ('_',$p->hdr->{IceDims}=~s/X/1/er)]); #badvalue(short)/er)]);
+		(my $str=$p->hdr->{IceDims})=~s/X/1/e;
+		my @d=split ('_',$str);
+		my $iced=pdl(short,@d); #badvalue(short)/er)]);
 		#say "$file IceDims ",$iced;
 #$iced->badflag(1);
 		$dims{$pid}.=$dims{$pid}*($dims{$pid}>=$iced)+$iced*($iced>$dims{$pid});
@@ -261,10 +327,13 @@ sub load_dcm_dir {
 		$dcms{$pid}->{$p->hdr->{IceDims}}=$p; # if ($p->isa('PDL')); # and $pid == $p->hdr->{ascconv}->{lProtID});
 	}
 	for my $id (@pid) {
-		$dcms{$id}->{dims}=dclone $dims{$id};
+		$dcms{$id}->{dims}=$dims{$id}->copy;
+		print "id $id $dims{$id}\n";
 	}
 	\%dcms;
 }
+
+
 
 sub parse_dcms {
 	my %dcms=%{shift()}; # reference to hash of 
@@ -272,48 +341,38 @@ sub parse_dcms {
 	#my (%tes,);
 	for my $pid (keys %dcms) {
 		my %stack=%{$dcms{$pid}};
-		my $dims =dclone $stack{dims};
+		#next unless (ref $stack{dims} eq 'HASH');
+		#say keys %stack;
+		my $dims =$stack{dims};
 		delete $stack{dims};
 		my $ref=$stack{(keys %stack)[0]};
 		#my $z=$ref->hdr->{ascconv}->{sSliceArray_lSize};
 		my $x=$ref->hdr->{dicom}->{Columns} ; 
 		die "No $x ",$ref->info unless $x;
 		my $y=$ref->hdr->{dicom}->{Rows};
-		#my $echoes=$ref->hdr->{ascconv}->{lContrasts};
-		#my $t=$ref->hdr->{ascconv}->{lRepetitions}+1;
-		#for my $i (0..$echoes-1) {
-		#	$tes{$ref->hdr->{ascconv}->{"alTE\_$i\_"}}=$i;
-		#}
-		#my ($ncoils,@coils);
-		#if (defined ($ref->hdr->{dicom}->{"0051,100f"}) 
-		#		and $ref->hdr->{dicom}->{"0051,100f"}=~/^C:/ ) {
-		#	@coils=map {$ref->hdr->{ascconv}->$_ } 
-		#	grep {/asCoilSelectMeas_0__asList_\d+__lElementSelected/}
-		#	keys %{$ref->hdr->{ascconv}}; #{ } @{$conv{$pid}};
-		#	$ncoils=@coils;
-		#} else {
-		#	$ncoils=1;
-		#}
-#my $other=(@stack/$z,$t,$echoes/$ncoils);
-#my $data{$pid}=zeroes(ushort,$x,$y,$z,$echoes,$ncoils,$t,$other);
-		say "Creating piddle $x,$y, $dims";
+		print "ID: $pid dims $dims transpose? ",$ref->hdr->{tp},"\n";
 		# dims: coil echo phase set t ? partition? slice? ? slice ? some_id
 		my $order=pdl[6,7,4,1,0,2,3];
-		$data{$pid}=zeroes(ushort,$x,$y,$dims($order));
+		if ($ref->hdr->{tp}) { $data{$pid}=zeroes(ushort,$y,$x,$dims($order));}
+		else { $data{$pid}=zeroes(ushort,$x,$y,$dims($order));}
 		$data{$pid}->sethdr(dclone($ref->gethdr)); # populate the header
 		$data{$pid}->hdr->{diff}={};
 		$data{$pid}->hdr->{Dimensions}=[qw/x y z t echo channel set/];
 		for my $key (@key_list) {
 			$data{$pid}->hdr->{dicom}->{$key}=zeroes(list $dims($order));
 			#$data{$pid}->hdr->{dicom}->{$key}.=$ref->hdr->{dicom}->{$key};
-			say "$key ",$data{$pid}->hdr->{dicom}->{$key}->info;
+			#say "$key ",$data{$pid}->hdr->{dicom}->{$key}->info;
 		}
 		$data{$pid}->hdr->{dicom}->{'Image Orientation (Patient)'}=zeroes(6,list $dims($order));
 		$data{$pid}->hdr->{dicom}->{'Image Position (Patient)'}=zeroes(3,list $dims($order));
 		$data{$pid}->hdr->{dicom}->{'Pixel Spacing'}=zeroes(2,list $dims($order));
 		for my $dcm (values %stack) {
 			#say $data{$pid}->info,list( $dcm->hdr->{IcePos}->($order));
-			$data{$pid}->(,,list $dcm->hdr->{IcePos}->($order)).=$dcm;
+			say "$x $y ",$ref->info;
+			say "Transpose? ",$dcm->hdr->{tp},$dcm->info;
+			if ($dcm->hdr->{tp}) {
+				$data{$pid}->(,,list $dcm->hdr->{IcePos}->($order)).=$dcm->transpose;}
+			else {$data{$pid}->(,,list $dcm->hdr->{IcePos}->($order)).=$dcm;}
 			for my $key (@key_list) {
 				#say "setting $key ",$dcm->hdr->{IcePos}->($order) ;
 				$data{$pid}->hdr->{dicom}->{$key}->(list $dcm->hdr->{IcePos}->($order))
@@ -336,7 +395,7 @@ sub parse_dcms {
 						$dcm->hdr->{dicom}->{$field};
 				}
 			}
-		}
+		} # for ... values %stack
 		#say "The following keys differ from ref:\n\t",join ", ",sort keys (%{$data{$pid}->hdr->{diff}});
 		#say Dumper $data{$pid}->hdr->{diff};
 		#say $data{$pid}->info;

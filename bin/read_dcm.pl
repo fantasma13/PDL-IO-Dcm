@@ -4,6 +4,7 @@
 use PDL::IO::Dcm qw/load_dcm_dir parse_dcms/;
 use strict "vars";
 use PDL::NiceSlice;
+use PDL;
 use PDL::IO::Sereal qw/wsereal/;
 use Getopt::Tabular;
 use Data::Dumper;
@@ -25,7 +26,10 @@ sub printStruct {
 				$res.= "$structName->"."[$i]: ()\n" if (@{$struct->[$i]}==0);
 				my $string = printStruct($struct->[$i],$structName."->[$i]",$pre." ");
 				$res.= "$structName->"."[$i]: $string\n" if ($string);
+			} elsif (ref($struct->[$i]) eq "PDL") { # contents of struct is array ref
+				$res.= "$structName->"."[$i]: ".(join (' ',list ($struct->[$i])))."\n";
 			} else { # contents of struct is a scalar, just print it.
+				
 				$res.= "$structName->"."[$i]: $struct->[$i]\n";
 			}
 		}
@@ -37,26 +41,31 @@ sub printStruct {
 			} elsif (ref($struct->{$_}) eq "ARRAY") { # contents of struct is array ref
 				my $string = printStruct($struct->{$_},$structName."->{$_}",$pre." ");
 				$res.= "$structName->"."{$_}: $string\n" if ($string);
+			} elsif (ref($struct->{$_}) eq "PDL") { # contents of struct is array ref
+				$res.= "$structName->"."{$_}: ".(join (' ',list($struct->{$_})))."\n";
 			} else { # contents of struct is a scalar, just print it.
 				$res.= "$structName->"."{$_}: $struct->{$_}\n";
 			}
 		}
 		#return($res);
+	} elsif (ref ($struct) eq 'PDL') {
+		$res.= "$structName: ".(join (' ',list($struct)))."\n";
 	} else {
 		$res.= "$structName: $struct\n";
-	}
+	} 
 #print "------------------\n" unless (defined($pre));
 	return($res);
 }
 
-my ($d,$nifti,$sereal,$usage,$t);
+my ($d,$nifti,$sereal,$usage,$t,$sp);
 
 my @opts=(
-	['-n','boolean',0,\$nifti, 'Create .nii and .txt files'],
-	['-t','boolean',0,\$t, 'serialise cardiac phases and time'],
 	['-d','boolean',0,\$d, 'split not into lProtID but dicom series number'],
-	['-s','boolean',1,\$sereal, 'Create sereal (defautl)'],
 	['-h', 'boolean',1,\$usage, 'print this help'],
+	['-p', 'boolean',0,\$sp, 'split slice groups'],
+	['-s','boolean',1,\$sereal, 'Create sereal (defautl)'],
+	['-t','boolean',0,\$t, 'serialise cardiac phases and time'],
+	['-i','boolean',0,\$nifti, 'Create .nii and .txt files'],
 );
 &GetOptions (\@opts, \@ARGV) || exit 1;
 
@@ -71,14 +80,17 @@ if ($usage or $#ARGV ==0 ) {
 
 my $dir=shift; 
 my $pre=shift;
+my %opt;
 
+$opt{sp}=$sp;
 # how should we split series?
 my $id=sub {$_[0]->hdr->{ascconv}->{"lProtID"};};
 $id=sub {my $ret=$_[0]->hdr->{dicom}->{"Series Number"}; 
 	$ret=~ s/^\s+|\s+$//g; $ret;} if $d;
+$opt{id}=$id;
 #$id=~ s/^\s+|\s+$//g;
 # loads all dicom files in this directory
-my $dcms=load_dcm_dir($dir,$id);
+my $dcms=load_dcm_dir($dir,\%opt);
 die "no data!" unless (keys %$dcms);
 print "Read data; ProtIDs: ",join ', ',keys %$dcms,"\n";
 # sort all individual dicoms into a hash of piddles.
@@ -101,7 +113,7 @@ for my $pid (keys %$data) {
 		$ni->write_nii($pre."_$pid.nii");
 		open F,">",$pre."_$pid.txt";
 		print F "## Generated using PDL::IO::Dcm\n\n";
-		print F "dimensions ",join ' ',$$data{$pid}->hdr->{Dimensions};
+		print F "dimensions: ",join ' ',(join ' ',@{$$data{$pid}->hdr->{Dimensions}})."\n\n";
 		print F "### ASCCONV BEGIN ###\n";
 		for my $k (sort keys %{$$data{$pid}->hdr->{ascconv}} ) 
 			{print F "$k = ",$$data{$pid}->hdr->{ascconv}->{$k},"\n" }
