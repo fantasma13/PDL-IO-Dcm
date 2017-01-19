@@ -250,6 +250,8 @@ sub read_dcm {
 	${$pdl->get_dataref}=substr($data,3);
 	$pdl->upd_data;
 	$pdl->hdr->{raw_dicom}=$dcm->getDicomField;
+	no PDL::NiceSlice;
+	say "populate header ",$$opt{dims},join ' ',%{$opt};
 	my $dims=$$opt{dims}->($dcm,$pdl); # call to vendor/modality specific stuff
 	$pdl->hdr->{IceDims}=$dims || die "No Ice Dims ",$file; #pdl->hdr->{raw_dicom}->{'0029,1010'}; #[split '_',$dims{$pid}=~s/X/0/r];
 	delete $pdl->hdr->{raw_dicom}->{'7fe0,0010'}; # Pixel data
@@ -270,6 +272,7 @@ sub read_dcm {
 		$pdl->hdr->{dicom}->{$id} #=~s/([0-9a-fA-F]{4}),([0-9a-fA-F]{4})/$1_$2/r}
 			=$value;
 	} # for loop over dicom ids
+	delete $pdl->hdr->{raw_dicom} if $$opt{delete_raw};
 	return $pdl;
 }
 sub is_equal {
@@ -303,7 +306,7 @@ sub load_dcm_dir {
 	for my $file (readdir ($dir)) {
 		next unless (-f "$dname/$file"); # =~m/\.dcm$|\.IMA$/;
 		#say "file $file";
-		my $p=read_dcm("$dname/$file");
+		my $p=read_dcm("$dname/$file",$opt);
 		eval{$p->isa('PDL')} ||next;
 		$n++;
 		no PDL::NiceSlice;

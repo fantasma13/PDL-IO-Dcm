@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-package PDL::IO::Dcm::Plugin::MRISiemens;
+package PDL::IO::Dcm::Plugins::MRISiemens;
 #use base 'PDL::IO::Dcm';
 use Exporter;
 #use PDL::Lite;
@@ -49,9 +49,12 @@ sub sort_protid {
 sub populate_header {
 	# dicom, piddle
 	# The protocol is in here:
+	#say "populate_header ",$_[1]->info,$_[0]->getValue('0020,0032');
 	read_text_hdr($_[0]->getValue ('0029,1020','native'),$_[1]); 
 	delete $_[1]->hdr->{raw_dicom}->{'0029,1020'}; # Protocol
-	return $_[0]->getValue('0029,1010','native')=~/ICE_Dims.{92}((_?(X|\d+)){13})/s; 
+	my @ret=$_[0]->getValue('0029,1010','native')=~/ICE_Dims.{92}((_?(X|\d+)){13})/s; 
+	say "Ret: @ret";
+	return shift @ret;
 }
 
 
