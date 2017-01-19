@@ -33,3 +33,12 @@ Revision history for PDL-IO-Dcm
 0.9100	2017-1-19
 
 	* split dims are now compact, no empty entries any more
+
+0.9_200 * PDL::IO::Dcm::Plugin::MRI_Siemens created. Other such plugins can be provided to
+	  handle other data. Two functions should be exproted: populate_header and setup
+
+	* printStruct is moved to Dcm.pm
+
+	* default grouping to Dicom series number handled in Dcm.pm, set option
+	  id to point to \&sort_series.
+

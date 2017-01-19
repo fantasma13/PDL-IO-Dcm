@@ -1,66 +1,19 @@
 #!perl
 #
 
-use PDL::IO::Dcm qw/load_dcm_dir parse_dcms/;
+use PDL::IO::Dcm qw/print_struct load_dcm_dir parse_dcms/;
 use strict "vars";
 use PDL::NiceSlice;
 use PDL;
 use PDL::IO::Sereal qw/wsereal/;
 use Getopt::Tabular;
 use Data::Dumper;
-
-
-# copied and modified from stackoverflow or perlmonks thread (can't remember atm)
-sub printStruct {
-	my ($struct,$structName,$pre)=@_;
-#    print "-----------------\n" unless (defined($pre));
-#   
-	my $res;
-	#if (!ref($struct)){ # $struct is a scalar.
-	if (ref($struct) eq "ARRAY") { # Struct is an array reference
-#return ("ARRAY(".scalar(@$struct).")") if (@$struct>100);
-		for(my$i=0;$i<@$struct;$i++) {
-			if (ref($struct->[$i]) eq "HASH") {
-				$res.=printStruct($struct->[$i],$structName."->[$i]",$pre." ");
-			} elsif (ref($struct->[$i]) eq "ARRAY") { # contents of struct is array ref
-				$res.= "$structName->"."[$i]: ()\n" if (@{$struct->[$i]}==0);
-				my $string = printStruct($struct->[$i],$structName."->[$i]",$pre." ");
-				$res.= "$structName->"."[$i]: $string\n" if ($string);
-			} elsif (ref($struct->[$i]) eq "PDL") { # contents of struct is array ref
-				$res.= "$structName->"."[$i]: ".(join (' ',list ($struct->[$i])))."\n";
-			} else { # contents of struct is a scalar, just print it.
-				
-				$res.= "$structName->"."[$i]: $struct->[$i]\n";
-			}
-		}
-		#return($res);
-	} elsif (ref($struct) eq "HASH"){ # $struct is a hash reference or a scalar
-		foreach (sort keys %{$struct}) {
-			if (ref($struct->{$_}) eq "HASH") {
-				$res.=printStruct($struct->{$_},$structName."->{$_}",$pre." ");
-			} elsif (ref($struct->{$_}) eq "ARRAY") { # contents of struct is array ref
-				my $string = printStruct($struct->{$_},$structName."->{$_}",$pre." ");
-				$res.= "$structName->"."{$_}: $string\n" if ($string);
-			} elsif (ref($struct->{$_}) eq "PDL") { # contents of struct is array ref
-				$res.= "$structName->"."{$_}: ".(join (' ',list($struct->{$_})))."\n";
-			} else { # contents of struct is a scalar, just print it.
-				$res.= "$structName->"."{$_}: $struct->{$_}\n";
-			}
-		}
-		#return($res);
-	} elsif (ref ($struct) eq 'PDL') {
-		$res.= "$structName: ".(join (' ',list($struct)))."\n";
-	} else {
-		$res.= "$structName: $struct\n";
-	} 
-#print "------------------\n" unless (defined($pre));
-	return($res);
-}
+use PDL::IO::Dcm::Plugins::MRISiemens qw/setup_dcm/;
 
 my ($d,$nifti,$sereal,$usage,$t,$sp);
 
 my @opts=(
-	['-d','boolean',0,\$d, 'split not into lProtID but dicom series number'],
+	#['-d','boolean',0,\$d, 'split not into lProtID but dicom series number'],
 	['-h', 'boolean',1,\$usage, 'print this help'],
 	['-p', 'boolean',0,\$sp, 'split slice groups'],
 	['-s','boolean',1,\$sereal, 'Create sereal (defautl)'],
@@ -82,24 +35,18 @@ my $dir=shift;
 my $pre=shift;
 my %opt;
 
-$opt{sp}=$sp;
-# how should we split series?
-my $id=sub {$_[0]->hdr->{ascconv}->{"lProtID"};};
-$id=sub {my $ret=$_[0]->hdr->{dicom}->{"Series Number"}; 
-	$ret=~ s/^\s+|\s+$//g; $ret;} if $d;
-$opt{id}=$id;
-#$id=~ s/^\s+|\s+$//g;
+setup_dcm(\%opt);
+$opt{split}=$sp;
 # loads all dicom files in this directory
 my $dcms=load_dcm_dir($dir,\%opt);
 die "no data!" unless (keys %$dcms);
 print "Read data; ProtIDs: ",join ', ',keys %$dcms,"\n";
 # sort all individual dicoms into a hash of piddles.
-my $data=parse_dcms($dcms);
+my $data=parse_dcms($dcms,\%opt);
 
 # save all data to disk
 for my $pid (keys %$data) {
 	print "Processing $pid.\n";
-	#print "Spacing ",$$data{$pid}->hdr->{dicom}->{'Pixel Spacing'},".\n";
 	if ($t) { # use Dicom series number
 		#print "-t: ",$$data{$pid}->info," \n";
 		$$data{$pid}->hdrcpy(1);
@@ -107,7 +54,6 @@ for my $pid (keys %$data) {
 		pop @{$$data{$pid}->hdr->{Dimensions}};
 		#print "-t: ",$$data{$pid}->info," \n";
 	}
-	print "Spacing ",$$data{$pid}->hdr->{dicom}->{'Pixel Spacing'},".\n";
 	if ($nifti) {
 		require (PDL::IO::Nifti) || die "Make sure PDL::IO::Nifti is installed!";
 		print "Creating Nifti $pid ",$$data{$pid}->info,"\n";

@@ -12,11 +12,10 @@ Version 0.9
 
 =cut
 
-our $VERSION = '0.9002';
+our $VERSION = '0.9_200';
 
 
 =head1 SYNOPSIS
-
 
 This is inteded to read and sort dicom images created by medical imaging devices.
 
@@ -66,12 +65,6 @@ This is used to check if two dicoms can be stacked based on matrix size, orienta
 
 If $pattern matches /d/, only dims are checked
 
-=head2 read_text_hdr
-
-parses the ASCCONV part of Siemens data header into the ascconv field of the
-piddle header. All special characters except [a-z0-9]i are converted to _ -- no
-quoting of hash keys required!
-
 =head2 load_dcm_dir ( $dir,\%options)
 
 reads all dicom files in a dicrectory and returns a hash of piddles containing
@@ -102,10 +95,20 @@ based on lProtID and the ICE_Dims field in 0029_1010. Returns a hash of piddles
 
 unpacks dicom fields and walks subfield structures recursively.
 
+=head2 sort_series
 
-=head2 read_dcm
+Groups dicom files based on their series number. If data within the series
+don't fit, the outcome depends on the split option. If set, it will always
+produce several piddles, appending a, b, c, etc.; if not, transposition is tried, 
+ignoring Pixel Spacing and Image Rotation. Only if this fails, data is split.
+
+=head2 read_dcm ($file, \%options)
 
 reads a dicom file and creates a piddle-with-header structure.
+
+=head2 printStruct
+
+This is used to generate human readable and parsable text from the headers.
 
 =head1 TODO 
 
@@ -130,31 +133,64 @@ use strict;
 use 5.10.0;
 
 our @ISA=qw/Exporter/;
-our @EXPORT_OK=qw/read_text_hdr read_dcm parse_dcms load_dcm_dir/;
+our @EXPORT_OK=qw/read_dcm parse_dcms load_dcm_dir print_struct/;
 
 my @key_list=("Instance Number",,'Window Center','Content Time',
 	'Nominal Interval','Instance Creation Time','Largest Image Pixel Value',
 	'Trigger Time','Window Width','Acquisition Time','Smallest Image Pixel Value',
 );
 
-sub read_text_hdr {
-    my $f=shift; # File
-    my $self=shift;
-    open (HDR,'<',\$f) || die "no header !";
-    my $l;
-    #say "file $f line $l";
-    do {$l=<HDR>; } until ($l=~/ASCCONV BEGIN/);
-    while (($l=<HDR>)!~/ASCCONV END/) {
-        chomp $l;
-        if ( $l) {
-            chomp (my ($key,$val)=split /\s*=\s*/,$l);
-            chomp($key);
-            $key=~s/[\[\].]/_/g;
-            $self->hdr->{ascconv}->{$key}=$val;
-        }
-    }
-    close HDR;
 
+sub sort_series {
+	my $ret=$_[0]->hdr->{dicom}->{"Series Number"}; 
+	$ret=~ s/^\s+|\s+$//g; $ret;
+}
+
+# copied and modified from stackoverflow or perlmonks thread (can't remember atm)
+sub printStruct {
+	my ($struct,$structName,$pre)=@_;
+#    print "-----------------\n" unless (defined($pre));
+#   
+	my $res;
+	#if (!ref($struct)){ # $struct is a scalar.
+	if (ref($struct) eq "ARRAY") { # Struct is an array reference
+#return ("ARRAY(".scalar(@$struct).")") if (@$struct>100);
+		for(my$i=0;$i<@$struct;$i++) {
+			if (ref($struct->[$i]) eq "HASH") {
+				$res.=printStruct($struct->[$i],$structName."->[$i]",$pre." ");
+			} elsif (ref($struct->[$i]) eq "ARRAY") { # contents of struct is array ref
+				$res.= "$structName->"."[$i]: ()\n" if (@{$struct->[$i]}==0);
+				my $string = printStruct($struct->[$i],$structName."->[$i]",$pre." ");
+				$res.= "$structName->"."[$i]: $string\n" if ($string);
+			} elsif (ref($struct->[$i]) eq "PDL") { # contents of struct is array ref
+				$res.= "$structName->"."[$i]: ".(join (' ',list ($struct->[$i])))."\n";
+			} else { # contents of struct is a scalar, just print it.
+				
+				$res.= "$structName->"."[$i]: $struct->[$i]\n";
+			}
+		}
+		#return($res);
+	} elsif (ref($struct) eq "HASH"){ # $struct is a hash reference or a scalar
+		foreach (sort keys %{$struct}) {
+			if (ref($struct->{$_}) eq "HASH") {
+				$res.=printStruct($struct->{$_},$structName."->{$_}",$pre." ");
+			} elsif (ref($struct->{$_}) eq "ARRAY") { # contents of struct is array ref
+				my $string = printStruct($struct->{$_},$structName."->{$_}",$pre." ");
+				$res.= "$structName->"."{$_}: $string\n" if ($string);
+			} elsif (ref($struct->{$_}) eq "PDL") { # contents of struct is array ref
+				$res.= "$structName->"."{$_}: ".(join (' ',list($struct->{$_})))."\n";
+			} else { # contents of struct is a scalar, just print it.
+				$res.= "$structName->"."{$_}: $struct->{$_}\n";
+			}
+		}
+		#return($res);
+	} elsif (ref ($struct) eq 'PDL') {
+		$res.= "$structName: ".(join (' ',list($struct)))."\n";
+	} else {
+		$res.= "$structName: $struct\n";
+	} 
+#print "------------------\n" unless (defined($pre));
+	return($res);
 }
 
 sub unpack_field{ 
@@ -201,6 +237,7 @@ sub unpack_field{
 
 sub read_dcm {
 	my $file=shift;
+	my $opt=shift; #options
 	my $dcm=DicomPack::IO::DicomReader->new($file) || return; 
 	my $h=unpack('S',substr ($dcm->getValue('Rows','native'),3,2));
 	my $w=unpack('S',substr ($dcm->getValue('Columns','native'),3,2));
@@ -212,16 +249,8 @@ sub read_dcm {
 	$pdl->make_physical;
 	${$pdl->get_dataref}=substr($data,3);
 	$pdl->upd_data;
-	#say "Rows $h";
-	read_text_hdr($dcm->getValue ('0029,1020','native'),$pdl); # The protocol is in here
 	$pdl->hdr->{raw_dicom}=$dcm->getDicomField;
-	delete $pdl->hdr->{raw_dicom}->{'0029,1020'}; # Protocol
-	#delete $pdl->hdr->{raw_dicom}->{'0029,1010'}; # also big structure, not sure what
-		# Ice Dimension string: 13 numbers or X=undef
-	#say "Ice Dims ",$dcm->getValue('0029,1010','native')=~/ICE_Dims/;
-	my @d=$dcm->getValue('0029,1010','native')=~/ICE_Dims.{92}((_?(X|\d+)){13})/s; 
-	my $dims=shift @d;
-	#say "Raw Dims @d";
+	my $dims=$$opt{dims}->($dcm,$pdl); # call to vendor/modality specific stuff
 	$pdl->hdr->{IceDims}=$dims || die "No Ice Dims ",$file; #pdl->hdr->{raw_dicom}->{'0029,1010'}; #[split '_',$dims{$pid}=~s/X/0/r];
 	delete $pdl->hdr->{raw_dicom}->{'7fe0,0010'}; # Pixel data
 	for my $id (keys %{$pdl->hdr->{raw_dicom}}) {
@@ -259,6 +288,7 @@ sub is_equal {
 	#say "is_equal: orientation ok";
 	1;
 }
+
 sub load_dcm_dir {
 	my %dcms; #([]);
 	my @pid;
@@ -266,7 +296,7 @@ sub load_dcm_dir {
 	my %dims; 
 	my $opt=shift; # field by which to split
 	my $id=$$opt{id};
-	my $sp=$$opt{sp};
+	my $sp=$$opt{split};
 	my $n=0;
 	my %refs; # reference images for each stack
 	opendir (my $dir, $dname) ||die "cannot open directory!";
@@ -276,11 +306,8 @@ sub load_dcm_dir {
 		my $p=read_dcm("$dname/$file");
 		eval{$p->isa('PDL')} ||next;
 		$n++;
-		#my $pid=$p->hdr->{ascconv}->{lProtID};
 		no PDL::NiceSlice;
 		my $pid=$id->($p); # Call to subroutine reference 
-		#say "PID: $pid @pid";
-		#say $p->info;
 		#say "ID $pid Instance number ",$p->hdr->{dicom}->{'Instance Number'};
 		$dcms{$pid}={} unless ref $dcms{$pid};
 		my $ref =$refs{$pid}; 
