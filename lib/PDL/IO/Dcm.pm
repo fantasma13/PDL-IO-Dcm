@@ -127,7 +127,7 @@ use Exporter;
 #use PDL::IO::Nifti;
 use strict;
 #use PDL::IO::Sereal;
-#use 5.10.0;
+use 5.10.0;
 
 our @ISA=qw/Exporter/;
 our @EXPORT_OK=qw/read_text_hdr read_dcm parse_dcms load_dcm_dir/;
@@ -205,6 +205,7 @@ sub read_dcm {
 	my $h=unpack('S',substr ($dcm->getValue('Rows','native'),3,2));
 	my $w=unpack('S',substr ($dcm->getValue('Columns','native'),3,2));
 	my $data=$dcm->getValue('PixelData','native');
+	return (undef ) unless defined $data;
 	my $datatype= (substr($data,0,2));
 	#say "datatype $datatype";
 	my $pdl=zeroes(ushort,$w,$h) if ($datatype =~/OW|XX/); 
@@ -365,17 +366,17 @@ sub parse_dcms {
 		my $order=pdl[6,7,4,1,0,2,3];
 		if ($ref->hdr->{tp}) { $data{$pid}=zeroes(ushort,$y,$x,$dims($order));}
 		else { $data{$pid}=zeroes(ushort,$x,$y,$dims($order));}
-		$data{$pid}->sethdr(dclone($ref->gethdr)); # populate the header
-		$data{$pid}->hdr->{diff}={};
-		$data{$pid}->hdr->{Dimensions}=[qw/x y z t echo channel set/];
+		my $header=dclone($ref->gethdr); # populate the header
+		$header->{diff}={};
+		$header->{Dimensions}=[qw/x y z t echo channel set/];
 		for my $key (@key_list) {
-			$data{$pid}->hdr->{dicom}->{$key}=zeroes(list $dims($order));
-			#$data{$pid}->hdr->{dicom}->{$key}.=$ref->hdr->{dicom}->{$key};
-			#say "$key ",$data{$pid}->hdr->{dicom}->{$key}->info;
+			$header->{dicom}->{$key}=zeroes(list $dims($order));
+			#$header->{dicom}->{$key}.=$ref->hdr->{dicom}->{$key};
+			#say "$key ",$header->{dicom}->{$key}->info;
 		}
-		$data{$pid}->hdr->{dicom}->{'Image Orientation (Patient)'}=zeroes(6,list $dims($order));
-		$data{$pid}->hdr->{dicom}->{'Image Position (Patient)'}=zeroes(3,list $dims($order));
-		$data{$pid}->hdr->{dicom}->{'Pixel Spacing'}=zeroes(2,list $dims($order));
+		$header->{dicom}->{'Image Orientation (Patient)'}=zeroes(6,list $dims($order));
+		$header->{dicom}->{'Image Position (Patient)'}=zeroes(3,list $dims($order));
+		$header->{dicom}->{'Pixel Spacing'}=zeroes(2,list $dims($order));
 		for my $dcm (values %stack) {
 			#say $data{$pid}->info,list( $dcm->hdr->{IcePos}->($order));
 			#say "$x $y ",$ref->info;
@@ -385,34 +386,75 @@ sub parse_dcms {
 			else {$data{$pid}->(,,list $dcm->hdr->{IcePos}->($order)).=$dcm;}
 			for my $key (@key_list) {
 				#say "setting $key ",$dcm->hdr->{IcePos}->($order) ;
-				$data{$pid}->hdr->{dicom}->{$key}->(list $dcm->hdr->{IcePos}->($order))
+				$header->{dicom}->{$key}->(list $dcm->hdr->{IcePos}->($order))
 					.=$dcm->hdr->{dicom}->{$key};
 			}
-			$data{$pid}->hdr->{dicom}->{'Image Orientation (Patient)'}
+			$header->{dicom}->{'Image Orientation (Patient)'}
 				->(,list $dcm->hdr->{IcePos}->($order))
 				.=pdl (split /\\/,$dcm->hdr->{dicom}->{'Image Orientation (Patient)'});
-			$data{$pid}->hdr->{dicom}->{'Pixel Spacing'}
+			$header->{dicom}->{'Pixel Spacing'}
 				->(,list $dcm->hdr->{IcePos}->($order))
 				.=pdl (split /\\/,$dcm->hdr->{dicom}->{'Pixel Spacing'});
-			$data{$pid}->hdr->{dicom}->{'Image Position (Patient)'}
+			$header->{dicom}->{'Image Position (Patient)'}
 				->(,list $dcm->hdr->{IcePos}->($order))
 				.=pdl (split /\\/,$dcm->hdr->{dicom}->{'Image Position (Patient)'});
 			for my $field (keys %{$dcm->hdr->{dicom}}) {
 				if ($dcm->hdr->{dicom}->{$field} ne $ref->hdr->{dicom}->{$field}) {
-					$data{$pid}->hdr->{diff}->{$field}={}
-						unless ref ($data{$pid}->hdr->{diff}->{$field});
-					$data{$pid}->hdr->{diff}->{$field}->{$dcm->hdr->{IceDims}}=
+					$header->{diff}->{$field}={}
+						unless ref ($header->{diff}->{$field});
+					$header->{diff}->{$field}->{$dcm->hdr->{IceDims}}=
 						$dcm->hdr->{dicom}->{$field};
 				}
 			}
 		} # for ... values %stack
-		#say "The following keys differ from ref:\n\t",join ", ",sort keys (%{$data{$pid}->hdr->{diff}});
-		#say Dumper $data{$pid}->hdr->{diff};
+		my $ind=whichND(maxover maxover ($data{$pid})); # actually populated fields!
+		#$data{$pid}->hdrcpy(1);
+		for my $ax (0..$ind->dim(0)-1) {
+			$data{$pid}=$data{$pid}->dice_axis($ax+2,$ind($ax)->uniq); # compact the data!
+			$header->{dicom}->{'Image Position (Patient)'}
+				=$header->{dicom}->{'Image Position (Patient)'}->dice_axis($ax+1,$ind($ax)->uniq); 
+		$header->{dicom}->{'Image Orientation (Patient)'}
+			=$header->{dicom}->{'Image Orientation (Patient)'}->dice_axis($ax+1,$ind($ax)->uniq);
+		$header->{dicom}->{'Pixel Spacing'}
+			=$header->{dicom}->{'Pixel Spacing'}->dice_axis($ax+1,$ind($ax)->uniq);
+			for my $key (@key_list) {
+				$header->{dicom}->{$key}=$header->{dicom}->{$key}->dice_axis($ax,$ind($ax)->uniq);
+			}
+			for my $val (values %{$header->{diff}}) {
+				$val=$val->dice_axis($ax,$ind($ax)->uniq) if (ref ($val) =~ /PDL/);
+			}
+		}
+		#$data{$pid}->hdrcpy(0);
+		#say "ind $ind";
+		#say "position ",$header->{dicom}->{'Image Position (Patient)'}->info;
+		#say "orientationn ",$header->{dicom}->{'Image Orientation (Patient)'}->info;
+		#say "spacing ",$header->{dicom}->{'Pixel Spacing'}->info;
+		$header->{dicom}->{'Image Position (Patient)'}
+			=$header->{dicom}->{'Image Position (Patient)'}->clump(1,2)->clump(5,6)->copy;
+		$header->{dicom}->{'Image Orientation (Patient)'}
+			=$header->{dicom}->{'Image Orientation (Patient)'}->clump(1,2)->clump(5,6)->copy;
+		$header->{dicom}->{'Pixel Spacing'}
+			=$header->{dicom}->{'Pixel Spacing'}->clump(1,2)->clump(5,6)->copy;
+		#say "A position ",$header->{dicom}->{'Image Position (Patient)'}->info;
+		#say "A orientationn ",$header->{dicom}->{'Image Orientation (Patient)'}->info;
+		#say "A spacing ",$header->{dicom}->{'Pixel Spacing'}->info;
+		for my $key (@key_list) {
+			#say "key $key ",$header->{dicom}->{$key}->info;
+			$header->{dicom}->{$key}=$header->{dicom}->{$key}->clump(0,1)->clump(4,5);
+		}
+		for my $val (values %{$header->{diff}}) {
+			$val=$val->clump(0,1)->clump(4,5) if (ref ($val) =~ /PDL/);
+		}
+		#say "The following keys differ from ref:\n\t",join ", ",sort keys (%{$header->{diff}});
+		#say Dumper $header->{diff};
 		#say $data{$pid}->info;
-		#say $data{$pid}->hdr->{dicom}->{Rows};
-		$data{$pid}->hdrcpy(1);
+		#say $header->{dicom}->{Rows};
+		#$data{$pid}->hdrcpy(1);
 		# serialise partitions/slices and phases/sets
 		$data{$pid}=$data{$pid}->clump(2,3)->clump(6,7);
+		$data{$pid}->sethdr(dclone($header));
+		say "ID $pid ",$data{$pid}->hdr->{dicom}->{'Pixel Spacing'}->squeeze;
+		#say $data{$pid}->info;
 		#say $data{$pid}->info;
 		#say $data{$pid}->hdr->{dicom}->{Rows};
 	} # for my $pid ...

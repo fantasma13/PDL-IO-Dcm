@@ -29,3 +29,7 @@ Revision history for PDL-IO-Dcm
 	* load_dims has now an option reference as second parameter instead of the id-code.
 
 	* new function is_equal 
+
+0.9100	2017-1-19
+
+	* split dims are now compact, no empty entries any more

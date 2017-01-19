@@ -99,12 +99,15 @@ my $data=parse_dcms($dcms);
 # save all data to disk
 for my $pid (keys %$data) {
 	print "Processing $pid.\n";
+	#print "Spacing ",$$data{$pid}->hdr->{dicom}->{'Pixel Spacing'},".\n";
 	if ($t) { # use Dicom series number
 		#print "-t: ",$$data{$pid}->info," \n";
+		$$data{$pid}->hdrcpy(1);
 		$$data{$pid}=$$data{$pid}->clump(6,3);
 		pop @{$$data{$pid}->hdr->{Dimensions}};
 		#print "-t: ",$$data{$pid}->info," \n";
 	}
+	print "Spacing ",$$data{$pid}->hdr->{dicom}->{'Pixel Spacing'},".\n";
 	if ($nifti) {
 		require (PDL::IO::Nifti) || die "Make sure PDL::IO::Nifti is installed!";
 		print "Creating Nifti $pid ",$$data{$pid}->info,"\n";
@@ -116,7 +119,7 @@ for my $pid (keys %$data) {
 		print F "dimensions: ",join ' ',(join ' ',@{$$data{$pid}->hdr->{Dimensions}})."\n\n";
 		print F "### ASCCONV BEGIN ###\n";
 		for my $k (sort keys %{$$data{$pid}->hdr->{ascconv}} ) 
-			{print F "$k = ",$$data{$pid}->hdr->{ascconv}->{$k},"\n" }
+			{ print F "$k = ",$$data{$pid}->hdr->{ascconv}->{$k},"\n" ;}
 		print F "### ASCCONV END ###\n\n";
 		print F "*** Parameters extracted from dicom fields \n";
 		for my $k (sort keys %{$$data{$pid}->hdr->{dicom}} ) {
@@ -128,7 +131,7 @@ for my $pid (keys %$data) {
 	} 
 	print "Nifti? $nifti Sereal? $sereal write? ",((! $sereal) and $nifti),"\n";
 	unless ((! $sereal) and $nifti) { 
-		print "Writing file $pre\_$pid.srl\n";
+		print "Writing file $pre\_$pid.srl\n", $$data{$pid}->info;
 		$$data{$pid}->wsereal("$pre\_$pid.srl"); 
 	}
 	#$$data{$pid}->(,,0,0,0,0,0,0,0;-)->double->wpic("$pre\_$pid.png");
