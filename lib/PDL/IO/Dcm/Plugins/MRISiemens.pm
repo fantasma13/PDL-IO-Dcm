@@ -5,7 +5,7 @@ package PDL::IO::Dcm::Plugins::MRISiemens;
 use Exporter;
 #use PDL::Lite;
 use strict;
-use 5.10.0;
+#use 5.10.0;
 
 
 our @ISA=qw/Exporter/;
@@ -18,7 +18,7 @@ sub setup_dcm {
 	$$opt{id}=\&PDL::IO::Dcm::sort_series;
 	$$opt{dims}=\&populate_header;
 	$$opt{delete_raw}=1; # deletes the raw_dicom structure after parsing
-	say join ' ',%{$opt};
+	#say join ' ',%{$opt};
 	$opt;
 }
 
@@ -53,7 +53,7 @@ sub populate_header {
 	read_text_hdr($_[0]->getValue ('0029,1020','native'),$_[1]); 
 	delete $_[1]->hdr->{raw_dicom}->{'0029,1020'}; # Protocol
 	my @ret=$_[0]->getValue('0029,1010','native')=~/ICE_Dims.{92}((_?(X|\d+)){13})/s; 
-	say "Ret: @ret";
+	#say "Ret: @ret";
 	return shift @ret;
 }
 

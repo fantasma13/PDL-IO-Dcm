@@ -1,7 +1,7 @@
 #!perl
 #
 
-use PDL::IO::Dcm qw/print_struct load_dcm_dir parse_dcms/;
+use PDL::IO::Dcm qw/printStruct load_dcm_dir parse_dcms/;
 use strict "vars";
 use PDL::NiceSlice;
 use PDL;

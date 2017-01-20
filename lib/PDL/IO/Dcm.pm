@@ -130,10 +130,10 @@ use Exporter;
 #use PDL::IO::Nifti;
 use strict;
 #use PDL::IO::Sereal;
-use 5.10.0;
+#use 5.10.0;
 
 our @ISA=qw/Exporter/;
-our @EXPORT_OK=qw/read_dcm parse_dcms load_dcm_dir print_struct/;
+our @EXPORT_OK=qw/read_dcm parse_dcms load_dcm_dir printStruct/;
 
 my @key_list=("Instance Number",,'Window Center','Content Time',
 	'Nominal Interval','Instance Creation Time','Largest Image Pixel Value',
@@ -251,7 +251,7 @@ sub read_dcm {
 	$pdl->upd_data;
 	$pdl->hdr->{raw_dicom}=$dcm->getDicomField;
 	no PDL::NiceSlice;
-	say "populate header ",$$opt{dims},join ' ',%{$opt};
+	#say "populate header ",$$opt{dims},join ' ',%{$opt};
 	my $dims=$$opt{dims}->($dcm,$pdl); # call to vendor/modality specific stuff
 	$pdl->hdr->{IceDims}=$dims || die "No Ice Dims ",$file; #pdl->hdr->{raw_dicom}->{'0029,1010'}; #[split '_',$dims{$pid}=~s/X/0/r];
 	delete $pdl->hdr->{raw_dicom}->{'7fe0,0010'}; # Pixel data
@@ -379,7 +379,7 @@ sub parse_dcms {
 	my %dcms=%{shift()}; # reference to hash of 
 	my %data;
 	#my (%tes,);
-	for my $pid (keys %dcms) {
+	for my $pid (sort keys %dcms) {
 		my %stack=%{$dcms{$pid}};
 		#next unless (ref $stack{dims} eq 'HASH');
 		#say keys %stack;
@@ -483,7 +483,7 @@ sub parse_dcms {
 		# serialise partitions/slices and phases/sets
 		$data{$pid}=$data{$pid}->clump(2,3)->clump(6,7);
 		$data{$pid}->sethdr(dclone($header));
-		say "ID $pid ",$data{$pid}->hdr->{dicom}->{'Pixel Spacing'}->squeeze;
+		#say "ID $pid ",$data{$pid}->hdr->{dicom}->{'Pixel Spacing'}->squeeze;
 		#say $data{$pid}->info;
 		#say $data{$pid}->info;
 		#say $data{$pid}->hdr->{dicom}->{Rows};
