@@ -5,7 +5,7 @@ package PDL::IO::Dcm::Plugins::MRISiemens;
 use Exporter;
 use PDL;
 use strict;
-#use 5.10.0;
+use 5.10.0;
 
 
 our @ISA=qw/Exporter/;
@@ -69,8 +69,6 @@ sub populate_header {
 	my $iced=pdl(short,@d); #badvalue(short)/er)]);
 	$iced--;
 	$piddle->hdr->{dim_idx}=$iced;
-	#say "$file dcm_key ",$iced;
-	#say "Ret: @ret";
 	#say "Dims $str pos $iced";
 	return $str;
 }

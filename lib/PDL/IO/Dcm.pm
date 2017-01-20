@@ -225,12 +225,14 @@ sub load_dcm_dir {
 		my $iced=$p->hdr->{dim_idx}->copy;
 		unless (grep (/^$pid$/,@pid)) {
 			#say "PID: $pid";
-			$dims{$pid}=zeroes(short,$iced->ndims);
+			$dims{$pid}=zeroes(short,$iced->dims);
 			push @pid,$pid;
 			$refs{$pid}=$p;
 		}
 		$iced++;
+		#say "PID $pid iced $iced dims ",$dims{$pid};
 		$dims{$pid}.=$dims{$pid}*($dims{$pid}>=$iced)+$iced*($iced>$dims{$pid});
+		#say "PID $pid iced $iced dims ",$dims{$pid};
 		$dcms{$pid}->{$p->hdr->{dcm_key}}=$p; # if ($p->isa('PDL')); # and $pid == $p->hdr->{ascconv}->{lProtID});
 	}
 	for my $id (@pid) {
