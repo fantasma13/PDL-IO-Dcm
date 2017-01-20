@@ -42,3 +42,9 @@ Revision history for PDL-IO-Dcm
 	* default grouping to Dicom series number handled in Dcm.pm, set option
 	  id to point to \&sort_series.
 
+0.10	2017-1-20
+
+	* moved more stuff to Plugins, hopefully the interface is clean, now?
+
+	* Created a Plugins/Primitive, sorting simply on instance number. This should
+	  be general enough to load any data?

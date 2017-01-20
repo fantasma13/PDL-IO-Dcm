@@ -2,121 +2,9 @@
 #
 package PDL::IO::Dcm;
 
-=head1 NAME
 
-PDL::IO::Dcm - Reads dicom files, sorts them and stores the result into piddles with headers 
+our $VERSION = '0.10';
 
-=head1 VERSION
-
-Version 0.9
-
-=cut
-
-our $VERSION = '0.9_200';
-
-
-=head1 SYNOPSIS
-
-This is inteded to read and sort dicom images created by medical imaging devices.
-
-Either use something like the following from within your module/application
-
-	# loads all dicom files in this directory
-	# $id is a code reference returning e.g. the Series Number
-	my $dcms=load_dcm_dir($dir,$id); 
-	die "no data!" unless (keys %$dcms);
-	print "Read data; ProtIDs: ",join ', ',keys %$dcms,"\n";
-	# sort all individual dicoms into a hash of piddles.
-	my $data=parse_dcms($dcms);
-
-or use the read_dcm.pl script to convert dicom files in a directory to serealised
-piddles (PDL::IO::Sereal) or NIFTI files with separate text headers (PDL::IO::Nifti).
-
-This software is tailored to Siemens MRI data based on the author's needs. For 
-general usage, the read_dcm function should and probably will be moved to
-vendor/modality specific plugin modules in future releases.
-
-=head1 Some notes on Dicom fields and how they are stored/treated
-
-The image data field is stored as the piddle, the other dicom
-elements are stored in the header under the raw_dicom key. 
-
-The Siemens protocol ASCCONV part is stored in the ascconv key. 
-
-Key 0029,1010 is the Siemens specific field that contains the ICE
-miniheaders with dimension information - and position in matrix
-0029,1020 is deleted from the header, it is big, containing the whole
-protocol. The important part is parsed into ascconv.
-
-Keys are parsed into a hash under the dicom key using the DicomPack module(s)
-to unpack. 
-
-The header fields IceDims and IcePos are used for sorting datasets. The field
-Dimensions lists the sorted names of dimensions. 
-
-Piddles are created for each lProtID or Series Number value. 
-
-
-=head1 SUBROUTINES/METHODS
-
-=head2 is_equal ($dcm1,$dcm2,$pattern)
-
-This is used to check if two dicoms can be stacked based on matrix size, orientation and pixel spacing.
-
-If $pattern matches /d/, only dims are checked
-
-=head2 load_dcm_dir ( $dir,\%options)
-
-reads all dicom files in a dicrectory and returns a hash of piddles containing
-sorted N-D data sets. 
-
-Fields in the options hash include:
-
-=over 
-
-=item id: 
-
-Uses a code reference to access the field by which to split. See read_dcm.pl for details. Currently, the ascconv field lProtID or dicom Series Number are used as keys. 
-
-=item sp: 
-
-Split slice groups, otherwise they are stacked together if xy-dims match, even transposed.
-
-=back 
-
-
-=head2 parse_dcms 
-
-Parses and sorts a hash of hashes of dicoms (such as returned by load_dcm_dir)
-based on lProtID and the ICE_Dims field in 0029_1010. Returns a hash of piddles 
-(lProtID).
-
-=head2 unpack_field
-
-unpacks dicom fields and walks subfield structures recursively.
-
-=head2 sort_series
-
-Groups dicom files based on their series number. If data within the series
-don't fit, the outcome depends on the split option. If set, it will always
-produce several piddles, appending a, b, c, etc.; if not, transposition is tried, 
-ignoring Pixel Spacing and Image Rotation. Only if this fails, data is split.
-
-=head2 read_dcm ($file, \%options)
-
-reads a dicom file and creates a piddle-with-header structure.
-
-=head2 printStruct
-
-This is used to generate human readable and parsable text from the headers.
-
-=head1 TODO 
-
-write tests! 
-
-Generalise to other modalities. This will be done based on request or as needed.
-
-=cut
 
 use PDL;
 use PDL::NiceSlice;
@@ -130,7 +18,7 @@ use Exporter;
 #use PDL::IO::Nifti;
 use strict;
 #use PDL::IO::Sereal;
-#use 5.10.0;
+use 5.10.0;
 
 our @ISA=qw/Exporter/;
 our @EXPORT_OK=qw/read_dcm parse_dcms load_dcm_dir printStruct/;
@@ -225,13 +113,7 @@ sub unpack_field{
 			keys %{$$tag{vr}};
 	}
 	$return=unpack ($packstring,substr($value,3,));
-	# split vector string into list
-	#($value=[split /\\/,$value]) if $id =~ /0020,003[27]/; 
-	# position and orientation
-	#($value=[split /\\/,$value]) if $id =~ /0028,0030/; # pixel size
-	#say "Image Rows $vr $packstring $value " if ($$tag{desc} eq 'Rows');
 	}
-	#say "ID $id value $value";
 	$return;
 }
 
@@ -252,29 +134,23 @@ sub read_dcm {
 	$pdl->hdr->{raw_dicom}=$dcm->getDicomField;
 	no PDL::NiceSlice;
 	#say "populate header ",$$opt{dims},join ' ',%{$opt};
-	my $dims=$$opt{dims}->($dcm,$pdl); # call to vendor/modality specific stuff
-	$pdl->hdr->{IceDims}=$dims || die "No Ice Dims ",$file; #pdl->hdr->{raw_dicom}->{'0029,1010'}; #[split '_',$dims{$pid}=~s/X/0/r];
+	#$pdl->hdr->{dcm_key}=$dims || die "No Ice Dims ",$file; 
 	delete $pdl->hdr->{raw_dicom}->{'7fe0,0010'}; # Pixel data
 	for my $id (keys %{$pdl->hdr->{raw_dicom}}) {
 		my $tag=getTag($id);
 		my $value=unpack_field($id,$tag,$dcm->getValue($id,'native')); 
 		#say "id $id v $value";
 		if (defined $tag) {
-			#say "ID $id, Tag $$tag{desc} ", %{$$tag{vr}};
-			#$packstring=join '',map {((getVR($_))->{type}||'a').'*'} 
-			#keys %{$$tag{vr}};
-			#say "Packstring $packstring";
-			#$value=unpack($packstring,$dcm->getValue($id),'native');
-			#say "Vaule $value";
 			$pdl->hdr->{dicom}->{$tag->{desc}}=$value;
-		} else { 
-		}
+		} else { }
 		$pdl->hdr->{dicom}->{$id} #=~s/([0-9a-fA-F]{4}),([0-9a-fA-F]{4})/$1_$2/r}
 			=$value;
 	} # for loop over dicom ids
+	my $dims=$$opt{dims}->($dcm,$pdl); # call to vendor/modality specific stuff
 	delete $pdl->hdr->{raw_dicom} if $$opt{delete_raw};
 	return $pdl;
 }
+
 sub is_equal {
 	my $a=shift;
 	my $b=shift;
@@ -346,25 +222,16 @@ sub load_dcm_dir {
 		}
 		} # defined $ref
 		use PDL::NiceSlice;
+		my $iced=$p->hdr->{dim_idx}->copy;
 		unless (grep (/^$pid$/,@pid)) {
 			#say "PID: $pid";
-			$dims{$pid}=zeroes(short,13);
+			$dims{$pid}=zeroes(short,$iced->ndims);
 			push @pid,$pid;
 			$refs{$pid}=$p;
 		}
-		#say "pos ",$p->hdr->{dicom}->{'0020,0032'}=~s/\\/ /r;
-		#say "orientation ",$p->hdr->{dicom}->{'0020,0037'}=~s/\\/ /r;
-		#say "Spacing ",$p->hdr->{dicom}->{'0028,0030'}=~s/\\/ /r;
-#say "IceDims ",$p->hdr->{IceDims};
-		#say "$n Series $pid IceDims ",$p->hdr->{IceDims};
-		(my $str=$p->hdr->{IceDims})=~s/X/1/e;
-		my @d=split ('_',$str);
-		my $iced=pdl(short,@d); #badvalue(short)/er)]);
-		#say "$file IceDims ",$iced;
-#$iced->badflag(1);
+		$iced++;
 		$dims{$pid}.=$dims{$pid}*($dims{$pid}>=$iced)+$iced*($iced>$dims{$pid});
-		$p->hdr->{IcePos}=$iced--;
-		$dcms{$pid}->{$p->hdr->{IceDims}}=$p; # if ($p->isa('PDL')); # and $pid == $p->hdr->{ascconv}->{lProtID});
+		$dcms{$pid}->{$p->hdr->{dcm_key}}=$p; # if ($p->isa('PDL')); # and $pid == $p->hdr->{ascconv}->{lProtID});
 	}
 	for my $id (@pid) {
 		$dcms{$id}->{dims}=$dims{$id}->copy;
@@ -373,12 +240,21 @@ sub load_dcm_dir {
 	\%dcms;
 }
 
+sub clump_data {
+	my $data=shift;
+	my $offset=shift;
+	my $clumplist=shift;
+	for my $clump (@$clumplist) {
+		$data=$data->clump( map {$_+$offset} @$clump);	
+	}
+	$data;
+}
 
 
 sub parse_dcms {
 	my %dcms=%{shift()}; # reference to hash of 
 	my %data;
-	#my (%tes,);
+	my $opt=shift;
 	for my $pid (sort keys %dcms) {
 		my %stack=%{$dcms{$pid}};
 		#next unless (ref $stack{dims} eq 'HASH');
@@ -393,46 +269,42 @@ sub parse_dcms {
 		my $y=$ref->hdr->{dicom}->{Rows};
 		#print "ID: $pid dims $dims transpose? ",$ref->hdr->{tp},"\n";
 		# dims: coil echo phase set t ? partition? slice? ? slice ? some_id
-		my $order=pdl[6,7,4,1,0,2,3];
+		my $order=pdl($$opt{dim_order}); 
 		if ($ref->hdr->{tp}) { $data{$pid}=zeroes(ushort,$y,$x,$dims($order));}
 		else { $data{$pid}=zeroes(ushort,$x,$y,$dims($order));}
 		my $header=dclone($ref->gethdr); # populate the header
 		$header->{diff}={};
-		$header->{Dimensions}=[qw/x y z t echo channel set/];
+		$header->{Dimensions}=$$opt{Dimensions}; 
 		for my $key (@key_list) {
 			$header->{dicom}->{$key}=zeroes(list $dims($order));
-			#$header->{dicom}->{$key}.=$ref->hdr->{dicom}->{$key};
-			#say "$key ",$header->{dicom}->{$key}->info;
 		}
 		$header->{dicom}->{'Image Orientation (Patient)'}=zeroes(6,list $dims($order));
 		$header->{dicom}->{'Image Position (Patient)'}=zeroes(3,list $dims($order));
 		$header->{dicom}->{'Pixel Spacing'}=zeroes(2,list $dims($order));
 		for my $dcm (values %stack) {
-			#say $data{$pid}->info,list( $dcm->hdr->{IcePos}->($order));
-			#say "$x $y ",$ref->info;
-			#say "ID $pid: Transpose? ",$dcm->hdr->{tp},$dcm->info;
+			say "order $order pos ",$dcm->hdr->{dim_idx}->($order),$data{$pid}->info;
 			if ($dcm->hdr->{tp}) {
-				$data{$pid}->(,,list $dcm->hdr->{IcePos}->($order)).=$dcm->transpose;}
-			else {$data{$pid}->(,,list $dcm->hdr->{IcePos}->($order)).=$dcm;}
+				$data{$pid}->(,,list $dcm->hdr->{dim_idx}->($order)).=$dcm->transpose;}
+			else {$data{$pid}->(,,list $dcm->hdr->{dim_idx}->($order)).=$dcm;}
 			for my $key (@key_list) {
-				#say "setting $key ",$dcm->hdr->{IcePos}->($order) ;
-				$header->{dicom}->{$key}->(list $dcm->hdr->{IcePos}->($order))
+				#say "setting $key ",$dcm->hdr->{dim_idx}->($order) ;
+				$header->{dicom}->{$key}->(list $dcm->hdr->{dim_idx}->($order))
 					.=$dcm->hdr->{dicom}->{$key};
 			}
 			$header->{dicom}->{'Image Orientation (Patient)'}
-				->(,list $dcm->hdr->{IcePos}->($order))
+				->(,list $dcm->hdr->{dim_idx}->($order))
 				.=pdl (split /\\/,$dcm->hdr->{dicom}->{'Image Orientation (Patient)'});
 			$header->{dicom}->{'Pixel Spacing'}
-				->(,list $dcm->hdr->{IcePos}->($order))
+				->(,list $dcm->hdr->{dim_idx}->($order))
 				.=pdl (split /\\/,$dcm->hdr->{dicom}->{'Pixel Spacing'});
 			$header->{dicom}->{'Image Position (Patient)'}
-				->(,list $dcm->hdr->{IcePos}->($order))
+				->(,list $dcm->hdr->{dim_idx}->($order))
 				.=pdl (split /\\/,$dcm->hdr->{dicom}->{'Image Position (Patient)'});
 			for my $field (keys %{$dcm->hdr->{dicom}}) {
 				if ($dcm->hdr->{dicom}->{$field} ne $ref->hdr->{dicom}->{$field}) {
 					$header->{diff}->{$field}={}
 						unless ref ($header->{diff}->{$field});
-					$header->{diff}->{$field}->{$dcm->hdr->{IceDims}}=
+					$header->{diff}->{$field}->{$dcm->hdr->{dcm_key}}=
 						$dcm->hdr->{dicom}->{$field};
 				}
 			}
@@ -454,39 +326,22 @@ sub parse_dcms {
 				$val=$val->dice_axis($ax,$ind($ax)->uniq) if (ref ($val) =~ /PDL/);
 			}
 		}
-		#$data{$pid}->hdrcpy(0);
-		#say "ind $ind";
-		#say "position ",$header->{dicom}->{'Image Position (Patient)'}->info;
-		#say "orientationn ",$header->{dicom}->{'Image Orientation (Patient)'}->info;
-		#say "spacing ",$header->{dicom}->{'Pixel Spacing'}->info;
 		$header->{dicom}->{'Image Position (Patient)'}
-			=$header->{dicom}->{'Image Position (Patient)'}->clump(1,2)->clump(5,6)->copy;
+			=clump_data($header->{dicom}->{'Image Position (Patient)'},1,$$opt{clump_dims});
 		$header->{dicom}->{'Image Orientation (Patient)'}
-			=$header->{dicom}->{'Image Orientation (Patient)'}->clump(1,2)->clump(5,6)->copy;
+			=clump_data($header->{dicom}->{'Image Orientation (Patient)'},0,$$opt{clump_dims});
 		$header->{dicom}->{'Pixel Spacing'}
-			=$header->{dicom}->{'Pixel Spacing'}->clump(1,2)->clump(5,6)->copy;
-		#say "A position ",$header->{dicom}->{'Image Position (Patient)'}->info;
-		#say "A orientationn ",$header->{dicom}->{'Image Orientation (Patient)'}->info;
-		#say "A spacing ",$header->{dicom}->{'Pixel Spacing'}->info;
+			=clump_data($header->{dicom}->{'Pixel Spacing'},0,$$opt{clump_dims});
 		for my $key (@key_list) {
 			#say "key $key ",$header->{dicom}->{$key}->info;
-			$header->{dicom}->{$key}=$header->{dicom}->{$key}->clump(0,1)->clump(4,5);
+			$header->{dicom}->{$key}=clump_data($header->{dicom}->{$key},0,$$opt{clump_dims});
 		}
 		for my $val (values %{$header->{diff}}) {
-			$val=$val->clump(0,1)->clump(4,5) if (ref ($val) =~ /PDL/);
+			$val=clump_data($val,0,$$opt{clump_dims}) if (ref ($val) =~ /PDL/);
 		}
-		#say "The following keys differ from ref:\n\t",join ", ",sort keys (%{$header->{diff}});
-		#say Dumper $header->{diff};
-		#say $data{$pid}->info;
-		#say $header->{dicom}->{Rows};
-		#$data{$pid}->hdrcpy(1);
 		# serialise partitions/slices and phases/sets
-		$data{$pid}=$data{$pid}->clump(2,3)->clump(6,7);
+		$data{$pid}=clump_data($data{$pid},2,$$opt{clump_dims}); 
 		$data{$pid}->sethdr(dclone($header));
-		#say "ID $pid ",$data{$pid}->hdr->{dicom}->{'Pixel Spacing'}->squeeze;
-		#say $data{$pid}->info;
-		#say $data{$pid}->info;
-		#say $data{$pid}->hdr->{dicom}->{Rows};
 	} # for my $pid ...
 	\%data;
 }
@@ -500,6 +355,151 @@ BEGIN {
         }
 }
 1;
+
+=head1 NAME
+
+PDL::IO::Dcm - Reads dicom files, sorts them and stores the result into piddles with headers 
+
+=head1 SYNOPSIS
+
+This is inteded to read and sort dicom images created by medical imaging devices.
+
+Either use something like the following from within your module/application
+
+	# loads all dicom files in this directory
+	# $id is a code reference returning e.g. the Series Number
+	my $dcms=load_dcm_dir($dir,$id); 
+	die "no data!" unless (keys %$dcms);
+	print "Read data; ProtIDs: ",join ', ',keys %$dcms,"\n";
+	# sort all individual dicoms into a hash of piddles.
+	my $data=parse_dcms($dcms);
+
+or use the read_dcm.pl script to convert dicom files in a directory to serealised
+piddles (PDL::IO::Sereal) or NIFTI files with separate text headers (PDL::IO::Nifti).
+
+=head1 About different implementations
+
+This software is tailored to Siemens MRI data based on the author's needs. For 
+general usage, specific stuff is moved to its own plugin. Each plugin needs to
+support a setup_dcm function 
+
+read_dcm function should and probably will be moved to
+vendor/modality specific plugin modules in future releases.
+
+=head1 Some notes on Dicom fields and how they are stored/treated
+
+The image data field is stored as the piddle, the other dicom
+elements are stored in the header under the raw_dicom key. 
+
+Keys are parsed into a hash under the dicom key using the DicomPack module(s)
+to unpack. 
+
+The header fields dcm_key and dim_idx are used for sorting datasets. The field
+Dimensions lists the sorted names of dimensions. 
+
+Piddles are created for each lProtID or Series Number value. 
+
+
+=head1 OPTIONS
+
+There are a couple of options that control the behaviour.
+
+=over 
+
+=item id:
+
+code ref expecting to return a key to group files; defaults to \&sort_series.
+
+=item dims
+
+code ref typically set to your plugin's populate_header routine. This is called to set 
+dim_idx and dcm_key for each file
+
+=item delete_raw
+
+flag controlling whether the unparsed dicom fields under raw_dicom should be retained; default no.
+
+=item Dimension
+
+list ref to names of expected dims. xy are left out. Should be set by your plugin to help interpret
+data.
+
+=item internal_dims
+
+raw dimension list before any clumping. 
+
+=item clump_dims
+
+these are clumped together to reduce dimensions, required by e.g. Nifti (max. 7).
+
+=back
+
+=head1 SUBROUTINES/METHODS
+
+=head2 clump_data
+
+Utitlity to clump a piddle over clump_dims option field, takes an offset 
+
+
+=head2 is_equal ($dcm1,$dcm2,$pattern)
+
+This is used to check if two dicoms can be stacked based on matrix size, orientation and pixel spacing.
+
+If $pattern matches /d/, only dims are checked
+
+=head2 load_dcm_dir ( $dir,\%options)
+
+reads all dicom files in a dicrectory and returns a hash of piddles containing
+sorted N-D data sets. 
+
+Fields in the options hash include:
+
+=over 
+
+=item id: 
+
+Uses a code reference to access the field by which to split. See read_dcm.pl for details. Currently, the ascconv field lProtID or dicom Series Number are used as keys. 
+
+=item sp: 
+
+Split slice groups, otherwise they are stacked together if xy-dims match, even transposed.
+
+=back 
+
+
+=head2 parse_dcms 
+
+Parses and sorts a hash of hashes of dicoms (such as returned by load_dcm_dir)
+based on lProtID and the ICE_Dims field in 0029_1010. Returns a hash of piddles 
+(lProtID).
+
+=head2 unpack_field
+
+unpacks dicom fields and walks subfield structures recursively.
+
+=head2 sort_series
+
+Groups dicom files based on their series number. If data within the series
+don't fit, the outcome depends on the split option. If set, it will always
+produce several piddles, appending a, b, c, etc.; if not, transposition is tried, 
+ignoring Pixel Spacing and Image Rotation. Only if this fails, data is split.
+
+=head2 read_dcm ($file, \%options)
+
+reads a dicom file and creates a piddle-with-header structure.
+
+=head2 printStruct
+
+This is used to generate human readable and parsable text from the headers.
+
+=head1 TODO 
+
+write tests! 
+
+Generalise to other modalities. This will be done based on request or as needed.
+
+=cut
+
 
 =head1 LICENSE AND COPYRIGHT
 
