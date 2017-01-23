@@ -50,6 +50,7 @@ die "no data!" unless (keys %$dcms);
 print "Read data; IDs: ",join ', ',keys %$dcms,"\n";
 # sort all individual dicoms into a hash of piddles.
 my $data=parse_dcms($dcms,\%opt);
+print "Parsed data. IDs: ",join (', ',keys %$data),"\n";
 
 # save all data to disk
 for my $pid (keys %$data) {

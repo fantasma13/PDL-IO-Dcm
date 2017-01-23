@@ -238,16 +238,16 @@ sub parse_dcms {
 	my $opt=shift;
 	for my $pid (sort keys %dcms) {
 		my %stack=%{$dcms{$pid}};
-		next unless $pid;
-		next unless (ref $stack{dims} eq 'HASH');
+		#next unless $pid;
+		next unless (ref $stack{dims} eq 'PDL');
 		my $dims =$stack{dims};
+		print "ID: $pid dims $dims transpose? \n";
 		die "No dims $pid " unless eval {$dims->isa('PDL')};
 		delete $stack{dims};
 		my $ref=$stack{(keys %stack)[0]};
 		my $x=$ref->hdr->{dicom}->{Columns} ; 
 		die "No $x ",$ref->info unless $x;
 		my $y=$ref->hdr->{dicom}->{Rows};
-		#print "ID: $pid dims $dims transpose? ",$ref->hdr->{tp},"\n";
 		my $order=pdl($$opt{dim_order}); 
 		if ($ref->hdr->{tp}) { $data{$pid}=zeroes(ushort,$y,$x,$dims($order));}
 		else { $data{$pid}=zeroes(ushort,$x,$y,$dims($order));}
