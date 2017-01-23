@@ -17,7 +17,7 @@ sub setup_dcm {
 	$$opt{id}=\&PDL::IO::Dcm::sort_series;
 	$$opt{sort}=\&populate_header;
 	$$opt{delete_raw}=1; # deletes the raw_dicom structure after parsing
-	$$opt{Dimension}=[qw/InstanceNumber/];
+	$$opt{Dimensions}=[qw/x y InstanceNumber/];
 	$opt;
 }
 

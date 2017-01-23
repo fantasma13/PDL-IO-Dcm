@@ -3,7 +3,7 @@
 package PDL::IO::Dcm;
 
 
-our $VERSION = '0.10';
+our $VERSION = '1.0';
 
 
 use PDL;
@@ -241,7 +241,7 @@ sub parse_dcms {
 		#next unless $pid;
 		next unless (ref $stack{dims} eq 'PDL');
 		my $dims =$stack{dims};
-		print "ID: $pid dims $dims transpose? \n";
+		#print "ID: $pid dims $dims transpose? \n";
 		die "No dims $pid " unless eval {$dims->isa('PDL')};
 		delete $stack{dims};
 		my $ref=$stack{(keys %stack)[0]};
@@ -291,7 +291,6 @@ sub parse_dcms {
 			}
 		} # for ... values %stack
 		my $ind=whichND(maxover maxover ($data{$pid})); # actually populated fields!
-		#$data{$pid}->hdrcpy(1);
 		for my $ax (0..$ind->dim(0)-1) {
 			$data{$pid}=$data{$pid}->dice_axis($ax+2,$ind($ax)->uniq); # compact the data!
 			$header->{dicom}->{'Image Position (Patient)'}

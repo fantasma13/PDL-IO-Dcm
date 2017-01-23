@@ -19,7 +19,7 @@ sub setup_dcm {
 	$$opt{sort}=\&populate_header;
 	$$opt{delete_raw}=1; # deletes the raw_dicom structure after parsing
 	#say join ' ',%{$opt};
-	if ($$opt{Nifti} ) { 
+	if ($$opt{s_phase_t} ) { 
 		$$opt{Dimensions}=[qw/x y z=partitions*slices t*set*phases echo channel /];
 	}else {
 		$$opt{Dimensions}=[qw/x y z=partitions*slices t echo channel set*phases/];
@@ -33,7 +33,7 @@ sub setup_dcm {
 	# note the order since dims change by clump!
 	# partitions and slices, phases and set, phases*set and t
 	$$opt{clump_dims}=[[0,1],[4,5],];
-	push @{$$opt{clump_dims}},[6,3] if $$opt{Nifti};
+	push (@{$$opt{clump_dims}},[1,4]) if $$opt{s_phase_t};
 	$opt;
 }
 
@@ -107,7 +107,8 @@ sets useful options for this modality.
 
 =head2 sort_protid
 
-alternative to split based on lProtID (matches raw data key)
+alternative to split based on lProtID (matches raw data key). To activate,
+after running setup_dcm, point option id to \&sort_protid.
 
 =head1 Specific options
 
@@ -115,8 +116,12 @@ alternative to split based on lProtID (matches raw data key)
 
 =item Nifti
 
-Do we want Nifti output? May be used by your plugin to apply additional steps, eg. more clumps, reorders,
-setting header fields ...
+Do we want Nifti output? May be used by your plugin to apply additional steps,
+eg. more clumps, reorders, setting header fields ...
+
+=item s_phase_t
+
+Serialize phase and t dimensions
 
 =back
 

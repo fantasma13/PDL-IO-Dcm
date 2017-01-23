@@ -55,4 +55,9 @@ Revision history for PDL-IO-Dcm
 
 	* check for duplicate entries when loading and parsing dicoms.
 
+1.0	* Version confusion! Best increase major.
+
+	* Writes data using flex raw by default, now. 
+	
+	* Text header is generated for flexraw and nifit files.
 
