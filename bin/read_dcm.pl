@@ -8,12 +8,12 @@ use PDL;
 use PDL::IO::Sereal qw/wsereal/;
 use Getopt::Tabular;
 use Data::Dumper;
-use PDL::IO::Dcm::Plugins::MRISiemens qw/setup_dcm/;
-
+my %opt;
+my $plugin="Primitive";
 my ($d,$nifti,$sereal,$usage,$t,$sp);
-
 my @opts=(
 	#['-d','boolean',0,\$d, 'split not into lProtID but dicom series number'],
+	['-u', 'string' ,1,\$plugin,'specify the plugin to process data'],
 	['-h', 'boolean',1,\$usage, 'print this help'],
 	['-p', 'boolean',0,\$sp, 'split slice groups'],
 	['-s','boolean',1,\$sereal, 'Create sereal (defautl)'],
@@ -33,7 +33,14 @@ if ($usage or $#ARGV ==0 ) {
 
 my $dir=shift; 
 my $pre=shift;
-my %opt;
+$opt{plugin}=$plugin;
+$plugin = "PDL/IO/Dcm/Plugins/$opt{plugin}"; # set plugin
+print "Plugin: $plugin\n";
+
+require ($plugin.'.pm') || die "Plugin $plugin could not be loaded!\n"; 
+print "module: PDL::IO::Dcm::Plugins::$opt{plugin}\n";
+eval("PDL::IO::Dcm::Plugins::$opt{plugin}")->import( qw/setup_dcm/);
+
 
 setup_dcm(\%opt);
 $opt{split}=$sp;
@@ -41,6 +48,7 @@ $opt{split}=$sp;
 my $dcms=load_dcm_dir($dir,\%opt);
 die "no data!" unless (keys %$dcms);
 print "Read data; ProtIDs: ",join ', ',keys %$dcms,"\n";
+$opt{Nifti}=$t;
 # sort all individual dicoms into a hash of piddles.
 my $data=parse_dcms($dcms,\%opt);
 
@@ -49,9 +57,9 @@ for my $pid (keys %$data) {
 	print "Processing $pid.\n";
 	if ($t) { # use Dicom series number
 		#print "-t: ",$$data{$pid}->info," \n";
-		$$data{$pid}->hdrcpy(1);
-		$$data{$pid}=$$data{$pid}->clump(6,3);
-		pop @{$$data{$pid}->hdr->{Dimensions}};
+		#$$data{$pid}->hdrcpy(1);
+		#$$data{$pid}=$$data{$pid}->clump(6,3);
+		#pop @{$$data{$pid}->hdr->{Dimensions}};
 		#print "-t: ",$$data{$pid}->info," \n";
 	}
 	if ($nifti) {

@@ -284,7 +284,7 @@ sub parse_dcms {
 		$header->{dicom}->{'Image Position (Patient)'}=zeroes(3,list $dims($order));
 		$header->{dicom}->{'Pixel Spacing'}=zeroes(2,list $dims($order));
 		for my $dcm (values %stack) {
-			say "order $order pos ",$dcm->hdr->{dim_idx}->($order),$data{$pid}->info;
+			#say "order $order pos ",$dcm->hdr->{dim_idx}->($order),$data{$pid}->info;
 			if ($dcm->hdr->{tp}) {
 				$data{$pid}->(,,list $dcm->hdr->{dim_idx}->($order)).=$dcm->transpose;}
 			else {$data{$pid}->(,,list $dcm->hdr->{dim_idx}->($order)).=$dcm;}
@@ -342,7 +342,10 @@ sub parse_dcms {
 			$val=clump_data($val,0,$$opt{clump_dims}) if (ref ($val) =~ /PDL/);
 		}
 		# serialise partitions/slices and phases/sets
+		#say "pid $pid data ",$data{$pid}->info;
+		#say "clump data ", $$opt{clump_dims};
 		$data{$pid}=clump_data($data{$pid},2,$$opt{clump_dims}); 
+		#say "clump: pid $pid data ",$data{$pid}->info;
 		$data{$pid}->sethdr(dclone($header));
 	} # for my $pid ...
 	\%data;

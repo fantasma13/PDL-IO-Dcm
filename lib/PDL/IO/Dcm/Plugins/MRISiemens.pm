@@ -19,7 +19,11 @@ sub setup_dcm {
 	$$opt{dims}=\&populate_header;
 	$$opt{delete_raw}=1; # deletes the raw_dicom structure after parsing
 	#say join ' ',%{$opt};
-	$$opt{Dimension}=[qw/x y z t echo channel set/];
+	if ($$opt{Nifti} ) { 
+		$$opt{Dimensions}=[qw/x y z=partitions*slices t*set*phases echo channel /];
+	}else {
+		$$opt{Dimensions}=[qw/x y z=partitions*slices t echo channel set*phases/];
+	}
 	$$opt{dim_order}=[6,7,4,1,0,2,3];
 	$$opt{internal_dims}=[
 	#c e p s t ? n l ? i ? ? id
@@ -27,7 +31,9 @@ sub setup_dcm {
 	#
 		qw/x y coil echo phase set t ? partition? slice? ? slice ? some_id/];
 	# note the order since dims change by clump!
-	$$opt{Clump_dims}=[[0,1],[4,5]];
+	# partitions and slices, phases and set, phases*set and t
+	$$opt{clump_dims}=[[0,1],[4,5],];
+	push @{$$opt{clump_dims}},[6,3] if $$opt{Nifti};
 	$opt;
 }
 
