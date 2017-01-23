@@ -3,7 +3,7 @@
 package PDL::IO::Dcm;
 
 
-our $VERSION = '1.0';
+our $VERSION = '1.000';
 
 
 use PDL;
