@@ -48,3 +48,9 @@ Revision history for PDL-IO-Dcm
 
 	* Created a Plugins/Primitive, sorting simply on instance number. This should
 	  be general enough to load any data?
+	
+	2017-1-23
+
+	* adapted read_dcm.pl to load plugins (-u). Default to Primitive. 
+
+

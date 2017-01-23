@@ -35,10 +35,9 @@ my $dir=shift;
 my $pre=shift;
 $opt{plugin}=$plugin;
 $plugin = "PDL/IO/Dcm/Plugins/$opt{plugin}"; # set plugin
-print "Plugin: $plugin\n";
 
 require ($plugin.'.pm') || die "Plugin $plugin could not be loaded!\n"; 
-print "module: PDL::IO::Dcm::Plugins::$opt{plugin}\n";
+print "Plugin: PDL::IO::Dcm::Plugins::$opt{plugin}\n";
 eval("PDL::IO::Dcm::Plugins::$opt{plugin}")->import( qw/setup_dcm/);
 
 

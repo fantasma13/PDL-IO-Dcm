@@ -178,7 +178,7 @@ sub load_dcm_dir {
 	my $sp=$$opt{split};
 	my $n=0;
 	my %refs; # reference images for each stack
-	opendir (my $dir, $dname) ||die "cannot open directory!";
+	opendir (my $dir, $dname) ||die "cannot open directory $dname!";
 	for my $file (readdir ($dir)) {
 		next unless (-f "$dname/$file"); # =~m/\.dcm$|\.IMA$/;
 		#say "file $file";
