@@ -53,4 +53,6 @@ Revision history for PDL-IO-Dcm
 
 	* adapted read_dcm.pl to load plugins (-u). Default to Primitive. 
 
+	* check for duplicate entries when loading and parsing dicoms.
+
 

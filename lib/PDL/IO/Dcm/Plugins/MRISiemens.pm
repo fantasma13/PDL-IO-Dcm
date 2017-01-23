@@ -16,7 +16,7 @@ sub setup_dcm {
 	$opt={} unless (ref($opt) eq 'HASH'); # ensure hash context
 	# split on series number by default
 	$$opt{id}=\&PDL::IO::Dcm::sort_series;
-	$$opt{dims}=\&populate_header;
+	$$opt{sort}=\&populate_header;
 	$$opt{delete_raw}=1; # deletes the raw_dicom structure after parsing
 	#say join ' ',%{$opt};
 	if ($$opt{Nifti} ) { 
@@ -108,6 +108,17 @@ sets useful options for this modality.
 =head2 sort_protid
 
 alternative to split based on lProtID (matches raw data key)
+
+=head1 Specific options
+
+=over 
+
+=item Nifti
+
+Do we want Nifti output? May be used by your plugin to apply additional steps, eg. more clumps, reorders,
+setting header fields ...
+
+=back
 
 =cut
 

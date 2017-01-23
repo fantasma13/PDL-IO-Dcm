@@ -41,13 +41,13 @@ print "Plugin: PDL::IO::Dcm::Plugins::$opt{plugin}\n";
 eval("PDL::IO::Dcm::Plugins::$opt{plugin}")->import( qw/setup_dcm/);
 
 
-setup_dcm(\%opt);
 $opt{split}=$sp;
+$opt{Nifti}=$t;
+setup_dcm(\%opt);
 # loads all dicom files in this directory
 my $dcms=load_dcm_dir($dir,\%opt);
 die "no data!" unless (keys %$dcms);
-print "Read data; ProtIDs: ",join ', ',keys %$dcms,"\n";
-$opt{Nifti}=$t;
+print "Read data; IDs: ",join ', ',keys %$dcms,"\n";
 # sort all individual dicoms into a hash of piddles.
 my $data=parse_dcms($dcms,\%opt);
 
@@ -83,8 +83,8 @@ for my $pid (keys %$data) {
 		close F;
 	} 
 	print "Nifti? $nifti Sereal? $sereal write? ",((! $sereal) and $nifti),"\n";
-	unless ((! $sereal) and $nifti) { 
-		print "Writing file $pre\_$pid.srl\n", $$data{$pid}->info;
+	if ($sereal)  { 
+		print "Writing file $pre\_$pid.srl\n", $$data{$pid}->info,"\n";
 		$$data{$pid}->wsereal("$pre\_$pid.srl"); 
 	}
 	#$$data{$pid}->(,,0,0,0,0,0,0,0;-)->double->wpic("$pre\_$pid.png");
