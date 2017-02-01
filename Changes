@@ -55,9 +55,20 @@ Revision history for PDL-IO-Dcm
 
 	* check for duplicate entries when loading and parsing dicoms.
 
-1.0	* Version confusion! Best increase major.
+1.000	* Version confusion! Best increase major.
 
 	* Writes data using flex raw by default, now. 
 	
 	* Text header is generated for flexraw and nifit files.
 
+1.001	2017-1-25
+
+	* The header diff element did not contain the reference value, fixed. 
+
+	* added Echo Number, Echo Time, Echo Number(s), Pixel Bandwidth to key_list
+
+	* Integration of PDL::Dims when present and when using PDL::IO::Sereal. 
+
+	* dcm_key is now Instance Number also for MRISiemens
+	
+	* the text header now contains the diff field

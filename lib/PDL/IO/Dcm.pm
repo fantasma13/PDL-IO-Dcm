@@ -3,7 +3,7 @@
 package PDL::IO::Dcm;
 
 
-our $VERSION = '1.000';
+our $VERSION = '1.001';
 
 
 use PDL;
@@ -23,7 +23,8 @@ use strict;
 our @ISA=qw/Exporter/;
 our @EXPORT_OK=qw/read_dcm parse_dcms load_dcm_dir printStruct/;
 
-my @key_list=("Instance Number",,'Window Center','Content Time',
+my @key_list=("Echo Time","Echo Number","Echo Number(s)", 'Pixel Bandwidth',
+	"Instance Number",,'Window Center','Content Time',
 	'Nominal Interval','Instance Creation Time','Largest Image Pixel Value',
 	'Trigger Time','Window Width','Acquisition Time','Smallest Image Pixel Value',
 );
@@ -100,14 +101,18 @@ sub unpack_field{
 			$vh{$v}=unpack_field("$id/$v",getTag("$id/$v"),$$value{$v},$return);		
 		}
 		$return=\%vh;
-	} else {
+	} else { # a scalar
 		my $vr=substr($value,0,2);
-		$packstring=join ('',(eval {getVR($vr)->{type}}||'a').'*'); 
 		if ($vr eq 'XX' and defined $tag) {
-			$packstring=join '',map {((getVR($_))->{type}||'a').'*'} 
-			keys %{$$tag{vr}};
+			($vr)=keys %{DicomPack::DB::DicomTagDict::getTag($id)->{vr}};
+		} 
+		if ($vr eq 'TM' ) {
+			($return=sprintf('%13.6f',substr($value,3,)))
+				=~s/^(\d\d)(\d\d)(\d\d\.\d+$)/3600*$1+60*$2+$3/e;
+		} else {
+			$packstring=join ('',(eval {getVR($vr)->{type}}||'a').'*'); 
+			$return=unpack ($packstring,substr($value,3,));
 		}
-		$return=unpack ($packstring,substr($value,3,));
 	}
 	$return;
 }
@@ -214,8 +219,25 @@ sub load_dcm_dir {
 			if (ref($dcms{$pid}->{$p->hdr->{dcm_key}}) eq 'PDL') ;
 		$dcms{$pid}->{$p->hdr->{dcm_key}}=$p; 
 	}
+	my $order=pdl($$opt{dim_order}); 
+	#print "Done reading.\n";
 	for my $id (@pid) {
-		$dcms{$id}->{dims}=$dims{$id}->copy;
+		#print "Sorting out dims for $id\n";
+		my $test=zeroes(byte,$dims{$id});
+		my $i=0;
+		for my $dcm (values %{$dcms{$id}}) {
+			next unless eval{$dcm->isa('PDL')};
+			$i++;
+			print "$i: ",$dcm->hdr->{dim_idx}," ? ",$test($dcm->hdr->{dim_idx}->(0),;-),"\n";
+			if (any ($test(list $dcm->hdr->{dim_idx}->($order)))) {
+				no PDL::NiceSlice;
+				$test=$$opt{duplicates}->($test,$dcm,$opt);
+				use PDL::NiceSlice;
+				#print "Duplicates detected. ",$test->info;
+			}
+			$test(list($dcm->hdr->{dim_idx})).=1;
+		}
+		$dcms{$id}->{dims}=$test->shape->copy;
 		#print "Set dims: id $id, $dims{$id}\n";
 	}
 	\%dcms;
@@ -261,12 +283,9 @@ sub parse_dcms {
 		$header->{dicom}->{'Image Position (Patient)'}=zeroes(3,list $dims($order));
 		$header->{dicom}->{'Pixel Spacing'}=zeroes(2,list $dims($order));
 		for my $dcm (values %stack) {
-			barf "This entry (". $dcm->hdr->{dim_idx}->($order).
-				max ($data{$pid}->(,,list $dcm->hdr->{dim_idx}->($order))).
-				") is already set! Check your plugin for the correct grouping!\n"
-				if any ($data{$pid}->(,,list $dcm->hdr->{dim_idx}->($order)));
 			if ($dcm->hdr->{tp}) {
-				$data{$pid}->(,,list $dcm->hdr->{dim_idx}->($order)).=$dcm->transpose;}
+				$data{$pid}->(,,list $dcm->hdr->{dim_idx}->($order))
+					.=$dcm->transpose;}
 			else {$data{$pid}->(,,list $dcm->hdr->{dim_idx}->($order)).=$dcm;}
 			for my $key (@key_list) {
 				$header->{dicom}->{$key}->(list $dcm->hdr->{dim_idx}->($order))
@@ -285,11 +304,16 @@ sub parse_dcms {
 				if ($dcm->hdr->{dicom}->{$field} ne $ref->hdr->{dicom}->{$field}) {
 					$header->{diff}->{$field}={}
 						unless ref ($header->{diff}->{$field});
-					$header->{diff}->{$field}->{$dcm->hdr->{dcm_key}}=
-						$dcm->hdr->{dicom}->{$field};
 				}
 			}
+
 		} # for ... values %stack
+		for my $dcm (values %stack) {
+			for my $field (keys %{$header->{diff}}) {	
+				$header->{diff}->{$field}->{$dcm->hdr->{dcm_key}}=
+					$dcm->hdr->{dicom}->{$field};
+			}
+		}
 		my $ind=whichND(maxover maxover ($data{$pid})); # actually populated fields!
 		for my $ax (0..$ind->dim(0)-1) {
 			$data{$pid}=$data{$pid}->dice_axis($ax+2,$ind($ax)->uniq); # compact the data!
@@ -319,6 +343,8 @@ sub parse_dcms {
 			$val=clump_data($val,0,$$opt{clump_dims}) if (ref ($val) =~ /PDL/);
 		}
 		$data{$pid}=clump_data($data{$pid},2,$$opt{clump_dims}); 
+		die "Dimensions don't add up! @{$$opt{Dimensions}}, $#{$$opt{Dimensions}} ",
+			$data{$pid}->info if ($data{$pid}->ndims != $#{$$opt{Dimensions}}+1);
 		$data{$pid}->sethdr(dclone($header));
 	} # for my $pid ...
 	\%data;

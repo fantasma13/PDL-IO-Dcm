@@ -10,7 +10,7 @@ use Getopt::Tabular;
 use Data::Dumper;
 my %opt;
 my $plugin="Primitive";
-my ($d,$nifti,$sereal,$usage,$t,$sp);
+my ($d,$nifti,$sereal,$ps,$usage,$t,$sp);
 my @opts=(
 	#['-d','boolean',0,\$d, 'split not into lProtID but dicom series number'],
 	['-u', 'string' ,1,\$plugin,'specify the plugin to process data'],
@@ -42,7 +42,10 @@ eval("PDL::IO::Dcm::Plugins::$opt{plugin}")->import( qw/setup_dcm/);
 
 
 $opt{split}=$sp;
-$opt{s_phase_t}=$t;
+# clump flags
+$opt{c_phase_t}=$t;
+$ps=$nifti or $ps;
+$opt{c_phase_set}=$ps;
 $opt{Nifti}=$nifti;
 setup_dcm(\%opt);
 # loads all dicom files in this directory
@@ -54,9 +57,9 @@ my $data=parse_dcms($dcms,\%opt);
 print "Parsed data. IDs: ",join (', ',keys %$data),"\n";
 
 # save all data to disk
+print "Nifti? $nifti Sereal? $sereal write? ",((! $sereal) or $nifti),"\n";
 for my $pid (keys %$data) {
 	print "Processing $pid.\n";
-	print "Nifti? $nifti Sereal? $sereal write? ",((! $sereal) and $nifti),"\n";
 	if ($nifti) {
 		require (PDL::IO::Nifti) || die "Make sure PDL::IO::Nifti is installed!";
 		print "Creating Nifti $pid ",$$data{$pid}->info,"\n";
@@ -77,6 +80,10 @@ for my $pid (keys %$data) {
 		print F "*** Parameters extracted from dicom fields \n";
 		for my $k (sort keys %{$$data{$pid}->hdr->{dicom}} ) {
 			print F printStruct( $$data{$pid}->hdr->{dicom}->{$k},$k,) ;	
+		}	
+		print F "\n\n*** Parameters that vary between images; from diff fields \n";
+		for my $k (sort keys %{$$data{$pid}->hdr->{diff}} ) {
+			print F printStruct( $$data{$pid}->hdr->{diff}->{$k},$k,) ;	
 		}	
 		print F "*** End of Parameters \n\n";
 		close F;
