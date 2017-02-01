@@ -63,6 +63,7 @@ sub read_text_hdr {
     }
     close HDR;
 }
+
 sub sort_protid {
 	$_[0]->hdr->{ascconv}->{"lProtID"};
 }
@@ -88,7 +89,6 @@ sub populate_header {
 
 sub handle_duplicates {
 	my $stack=shift;
-	my $header=shift;
 	my $dcm=shift;
 	my $opt=shift;
 	"This entry (". $dcm->hdr->{dim_idx}->($$opt{dim_order}).

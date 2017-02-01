@@ -5,7 +5,7 @@ use Exporter;
 use PDL;
 use strict;
 use PDL::NiceSlice;
-use 5.10.0;
+#use 5.10.0;
 
 
 our @ISA=qw/Exporter/;
@@ -38,24 +38,24 @@ sub handle_duplicates {
 	my $stack=shift;
 	my $dcm=shift;
 	#my $str=',,'.$dcm->hdr->{dim_idx}->(0);
-	say "duplicate ",$dcm->hdr->{dim_idx}, $stack->info;
+	#say "duplicate ",$dcm->hdr->{dim_idx}, $stack->info;
 	my $idx=$dcm->hdr->{dim_idx};
 	my $n=$idx(1);
-	say "$n - idx: ",$idx->info;
+	#say "$n - idx: ",$idx->info;
 	# increase the second index until we find an empty space
 	# data flow should store 
 	do  { 
-		say "$idx ",$stack(list ($idx);-),"; ";
+		#say "$idx ",$stack(list ($idx);-),"; ";
 		#print "$idx n $n exists? ",$stack(list($idx);-),"\n";
-		say $n," >= shape ",$stack->shape->(-1);
+		#say $n," >= shape ",$stack->shape->(-1);
 		$n++; 
 		if (sclr $stack->shape->(-1) <= ($n)) {
-			say "growing $n",$stack->shape->(-1);
+			#say "growing $n",$stack->shape->(-1);
 			$stack=$stack->mv(-1,0)->append(0)->mv(0,-1);
 		}
 		barf "This is impossible $n, $idx, ",$stack($idx(0),;-) if $n>2;
 	} while ($stack(list ($idx)));
-	say "new dim_dix ",$dcm->hdr->{dim_idx}, $stack->info;
+	#say "new dim_dix ",$dcm->hdr->{dim_idx}, $stack->info;
 	#$dcm->hdr->{dim_idx}=
 	#$stack->(,,list($dcm->hdr->{dim_idx}),$n).=$dcm;
 	#"This entry (". $dcm->hdr->{dim_idx}->($order).
