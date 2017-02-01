@@ -226,12 +226,12 @@ sub load_dcm_dir {
 		my $ldims=$dims{$id}->copy;
 		my $test=zeroes(byte,$dims{$id}->($order));
 		my $i=0;
-		print "Test: ",$test->info,"\n";
+		#print "Test: ",$test->info,"\n";
 		for my $dcm (values %{$dcms{$id}}) {
 			next unless eval{$dcm->isa('PDL')};
 			$i++;
-			print "$i: ",$dcm->hdr->{dim_idx}->($order)," ? ";
-			print $test(list $dcm->hdr->{dim_idx}->($order)),"\n";
+			#print "$i: ",$dcm->hdr->{dim_idx}->($order)," ? ";
+			#print $test(list $dcm->hdr->{dim_idx}->($order)),"\n";
 			if (any ($test(list $dcm->hdr->{dim_idx}->($order)))) {
 				no PDL::NiceSlice;
 				$test=$$opt{duplicates}->($test,$dcm,$opt);
@@ -243,7 +243,7 @@ sub load_dcm_dir {
 		$ldims($order).=$test->shape->copy;
 		$dcms{$id}->{dims}=$ldims;
 		#print "Set dims: id $id, $dims{$id}\n";
-		print "Dims: $dims{$id} order $order ";
+		#print "Dims: $dims{$id} order $order ";
 	}
 	\%dcms;
 }
@@ -268,7 +268,7 @@ sub parse_dcms {
 		#next unless $pid;
 		next unless (ref $stack{dims} eq 'PDL');
 		my $dims =$stack{dims};
-		print "ID: $pid dims $dims transpose? \n";
+		#print "ID: $pid dims $dims transpose? \n";
 		die "No dims $pid " unless eval {$dims->isa('PDL')};
 		delete $stack{dims};
 		my $ref=$stack{(keys %stack)[0]};
@@ -276,8 +276,8 @@ sub parse_dcms {
 		die "No $x ",$ref->info unless $x;
 		my $y=$ref->hdr->{dicom}->{Rows};
 		my $order=pdl($$opt{dim_order}); 
-		print "Dims: $dims order $order ";
-		print $dims($order),"\n";
+		#print "Dims: $dims order $order ";
+		#print $dims($order),"\n";
 		if ($ref->hdr->{tp}) {  $data{$pid}=zeroes(ushort,$y,$x,$dims($order));}
 		else { 			$data{$pid}=zeroes(ushort,$x,$y,$dims($order));}
 		my $header=dclone($ref->gethdr); # populate the header
