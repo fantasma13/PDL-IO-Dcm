@@ -67,8 +67,13 @@ Revision history for PDL-IO-Dcm
 
 	* added Echo Number, Echo Time, Echo Number(s), Pixel Bandwidth to key_list
 
-	* Integration of PDL::Dims when present and when using PDL::IO::Sereal. 
+	* Integration of PDL::Dims when present and when using PDL::IO::Sereali - started, not used yet. 
 
 	* dcm_key is now Instance Number also for MRISiemens
 	
 	* the text header now contains the diff field
+
+1.002	2017-2-2
+
+	* Instance number is not always unique, Primitive handles this now by a second (unsorted) index.
+
