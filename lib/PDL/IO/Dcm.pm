@@ -444,6 +444,11 @@ at the beginning and are not counted.
 list ref to names of expected dims. xy are left out. Should be set by your
 plugin to help interpret data.
 
+=item duplicates
+
+a code ref executed if two images have identical positions in stack, e.g. same
+Series Number Instance Number, this can happen.
+
 =item id:
 
 code ref expecting to return a key to group files; defaults to \&sort_series.
