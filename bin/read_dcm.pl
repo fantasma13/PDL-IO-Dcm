@@ -10,7 +10,8 @@ use Getopt::Tabular;
 use Data::Dumper;
 my %opt;
 my $plugin="Primitive";
-my ($d,$nifti,$sereal,$ps,$usage,$t,$sp);
+my ($d,$nifti,$sereal,$ps,$usage,$t,$del_raw,$sp,$use_dims);
+$del_raw=1;
 my @opts=(
 	#['-d','boolean',0,\$d, 'split not into lProtID but dicom series number'],
 	['-u', 'string' ,1,\$plugin,'specify the plugin to process data'],
@@ -19,6 +20,8 @@ my @opts=(
 	['-s','boolean',1,\$sereal, 'Create sereal '],
 	['-t','boolean',0,\$t, 'serialise cardiac phases and time'],
 	['-i','boolean',0,\$nifti, 'Create .nii and .txt files'],
+	['-r','boolean',0,\$del_raw, 'delete raw dicom fields, default'],
+	['-d','boolean',0,\$use_dims, 'include PDL::Dimds support, implies -s, otherwise useless.'],
 );
 &GetOptions (\@opts, \@ARGV) || exit 1;
 
@@ -47,14 +50,17 @@ $opt{c_phase_t}=$t;
 $ps=$nifti or $ps;
 $opt{c_phase_set}=$ps;
 $opt{Nifti}=$nifti;
+$opt{use_dims}=$use_dims;
+eval("PDL::IO::Dcm::Plugins::$opt{plugin}")->import( qw/init_dims/) if $opt{use_dims};
+$sereal |= $use_dims; # use sereal to save data, otherwise useless!
 setup_dcm(\%opt);
+$opt{delete_raw}=$del_raw;
 # loads all dicom files in this directory
 my $dcms=load_dcm_dir($dir,\%opt);
 die "no data!" unless (keys %$dcms);
 print "Read data; IDs: ",join ', ',keys %$dcms,"\n";
 # sort all individual dicoms into a hash of piddles.
 my $data=parse_dcms($dcms,\%opt);
-print "Parsed data. IDs: ",join (', ',keys %$data),"\n";
 
 # save all data to disk
 print "Nifti? $nifti Sereal? $sereal write? ",((! $sereal) or $nifti),"\n";
@@ -89,6 +95,9 @@ for my $pid (keys %$data) {
 		close F;
 	} 
 	if ($sereal)  { 
+		print "Parsed data. IDs: ",join (', ',keys %$data),"\n";
+		print "Pos: ",$$data{$pid}->hdr->{dicom}->{'Image Position (Patient)'};
+		init_dims($$data{$pid},\%opt) if ($opt{use_dims});
 		print "Writing file $pre\_$pid.srl\n", $$data{$pid}->info,"\n";
 		$$data{$pid}->wsereal("$pre\_$pid.srl"); 
 	}
