@@ -77,3 +77,8 @@ Revision history for PDL-IO-Dcm
 
 	* Instance number is not always unique, Primitive handles this now by a second (unsorted) index.
 
+1.003	2017-2.8
+
+	* PDL::Dims in MRISiemens support improved, looks good so far, but needs testing.
+
+
