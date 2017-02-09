@@ -22,22 +22,22 @@ sub setup_dcm {
 	#say join ' ',%{$opt};
 	if ($$opt{c_phase_t} ) { 
 		if ($$opt{c_phase_set} ) { 
-			$$opt{Dimensions}=[qw/x y z=partitions*slices t*set*phases echo channel/];
+			$$opt{Dimensions}=[qw/x y z=partitions*slices T*Set*Phases Echo Channel/];
 		} else {
-			$$opt{Dimensions}=[qw/x y z=partitions*slices t*phases echo channel set/];
+			$$opt{Dimensions}=[qw/x y z=partitions*slices T*Phases Echo Channel Set/];
 		}
 	}else {
 		if ($$opt{c_phase_set} ) { 
-			$$opt{Dimensions}=[qw/x y z=partitions*slices t echo channel set*phase/];
+			$$opt{Dimensions}=[qw/x y z=partitions*slices T Echo Channel Set*Phase/];
 		} else {
-			$$opt{Dimensions}=[qw/x y z=partitions*slices t echo channel set phase/];
+			$$opt{Dimensions}=[qw/x y z=partitions*slices T Echo Channel Phase Set /];
 		}
 	}
 	# part,sl,t,echo,coil,phase,set
 	$$opt{dim_order}=[6,10,4,1,0,2,3];
 	$$opt{internal_dims}=[
 	#
-		qw/x y coil echo phase set t ? partition? slice? ? slice ? some_id/];
+		qw/x y coil echo cphase set t ? partition? chron_slice? ? slice ? some_id/];
 	# note the order since dims change by clump!
 	# partitions and slices
 	$$opt{clump_dims}=[[0,1],];
@@ -109,7 +109,7 @@ sub init_dims {
 	# we need these modules, return undef otherwise.
 	require PDL::Dims || return;
 	require PDL::Transform || return;
-	PDL::Dims->import(qw/vals hpar dinc initdim dimsize drot idx diminfo /);
+	PDL::Dims->import(qw/is_equidistant dmin dmax vals hpar dinc initdim dimsize drot idx diminfo /);
 	say "init_dims: ",$self->hdr->{dicom}->{Rows} ;
 	say "init_dims: hpar ",hpar($self,'dicom','Rows');
 	PDL::Transform->import(qw/t_linear/);
@@ -226,36 +226,54 @@ sub init_dims {
 	# other dimensions
 	for my $n (3..$#{$$opt{Dimensions}}) { # x,y,z are handled above
 		my $dim=$$opt{Dimensions}->[$n];
-		print "Init Dim $dim \n";
-		if ($dim eq 'echo') {
-			my $str=('(0),' x ($n-2)).','.('(0),' x ($#{$$opt{Dimensions}}-$n));
+		print "Init Dim $dim - $n\n";
+		my $str=('(0),' x ($n-2)).','.('(0),' x ($#{$$opt{Dimensions}}-$n));
+		say "$str ";
+		if ($dim eq 'Echo') {
+		#	my $str=('(0),' x ($n-2)).','.('(0),' x ($#{$$opt{Dimensions}}-$n));
 			initdim ($self,'echo',unit=>'us',
 			vals=>[list (hpar($self,'dicom','Echo Time')->($str))]);
 		}
-		elsif ($dim eq 't') {
-			my $str=('(0),' x ($n-2)).','.('(0),' x ($#{$$opt{Dimensions}}-$n));
-			say "t $str :", list (hpar($self,'dicom','Acquisition Time')->($str));
-			initdim ($self,'t',unit=>'s',vals=>[list (hpar($self,'dicom','Acquisition Time')->($str))]);
-			say "T values :",vals ($self,'t');
-		} elsif ($dim eq 'channel') {
-			my $coil=hpar($self,'dicom','0051,100f');
+		elsif ($dim eq 'T') {
+		#	my $str=('(0),' x ($n-2)).','.('(0),' x ($#{$$opt{Dimensions}}-$n));
+			my $t=hpar($self,'dicom','Acquisition Time')->($str);
+			if (is_equidistant($t,0.003)) {
+				initdim ($self,'t',unit=>'s',min=>sclr($t(0)),max=>sclr($t(-1)));
+				say "T min ",dmin($self,'t')," max ",dmax($self,'t')," inc ",dinc($self,'t'), $t;
+			} else {
+				initdim ($self,'t',unit=>'s',vals=>[list($t)]);
+				say "T values :",vals ($self,'t');
+			}
+		} elsif ($dim =~ /Channel/) {
+			my $coil=hpar($self,'dicom','0051,100f')||'combined';
 			if ($self->dim($n)>1) {
 				initdim ($self,'channel',vals=>[hpar($self,'dicom','0051,100f')->flat->(:2)]);
 			} else {
 				initdim ($self,'channel',vals=>[$coil, size=>1]);
 			}
-		} elsif ($dim eq 'set') {
-			initdim ($self,'Set'); # This can be anything, no further info easily available
-		} elsif ($dim eq 'phase') {
-			my $str=('(0),' x ($n-2)).','.('(0),' x ($#{$$opt{Dimensions}}-$n));
-			initdim ($self,'phase',unit=>"t',vals=>[list hpar($self,'dicom','Trigger Time')->($str)]);
+		} elsif ($dim =~ /Set/) {
+			initdim ($self,'set'); # This can be anything, no further info easily available
+		} elsif ($dim =~ /Phase/) {
+			my $t=hpar($self,'dicom','Trigger Time');
+			say $t->info;
+			$t=$t($str);
+			say $t;
+			if (is_equidistant($t)) {
+				initdim ($self,'cphase',unit=>'ms',min=>sclr($t(0)),max=>sclr($t(-1)));
+				say "Trigger min ",dmin($self,'cphase')," max ",dmax($self,'cphase')," inc ",dinc($self,'cphase'), $t;
+				say "Trigger ",vals ($self,'cphase');
+			} else {
+				initdim ($self,'cphase',unit=>'ms',vals=>[list($t)]);
+				say "Trigger values :",vals ($self,'cphase');
+			}
 		}
 	}
 	my $mat=drot($self) x stretcher (pdl(dinc($self)));
 	$mat=$mat->transpose ;#if ($pe_dir =~ /COL/);
 	#say $mat;
 	my $xf=t_linear(matrix=>$mat,post=>$pos_d(,0;-));
-	say dinc($self);
+	say "inc ",dinc ($self);
+	say diminfo($self);
 	hpar($self,'init_transform','matrix',$mat);
 	hpar($self,'init_transform','post',$pos_d(,0;-));
 #barf "initdim fails!" unless ($#{dimname($self)}>2);
