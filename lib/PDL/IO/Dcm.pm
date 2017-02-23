@@ -3,7 +3,7 @@
 package PDL::IO::Dcm;
 
 
-our $VERSION = '1.003';
+our $VERSION = '1.004';
 
 
 use PDL;
@@ -289,6 +289,8 @@ sub parse_dcms {
 		$header->{dicom}->{'Image Orientation (Patient)'}=zeroes(6,list $dims($order));
 		$header->{dicom}->{'Image Position (Patient)'}=zeroes(3,list $dims($order));
 		$header->{dicom}->{'Pixel Spacing'}=zeroes(2,list $dims($order));
+		$header->{dim_idx}={};
+		$header->{dcm_key}={};
 		for my $dcm (values %stack) {
 			if ($dcm->hdr->{tp}) {
 				$data{$pid}->(,,list $dcm->hdr->{dim_idx}->($order))
@@ -298,6 +300,11 @@ sub parse_dcms {
 				$header->{dicom}->{$key}->(list $dcm->hdr->{dim_idx}->($order))
 					.=$dcm->hdr->{dicom}->{$key};
 			}
+			# preserve original info
+			print "IDX: ",$dcm->hdr->{dim_idx};
+			$header->{dim_idx}->{$dcm->hdr->{dcm_key}}=$dcm->hdr->{dim_idx};
+			$header->{dcm_key}->{join ('_',list $dcm->hdr->{dim_idx}->($order))}
+				=$dcm->hdr->{dcm_key};
 			$header->{dicom}->{'Image Orientation (Patient)'}
 				->(,list $dcm->hdr->{dim_idx}->($order))
 				.=pdl (split /\\/,$dcm->hdr->{dicom}->{'Image Orientation (Patient)'});

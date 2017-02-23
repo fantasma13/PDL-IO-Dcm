@@ -72,6 +72,27 @@ sub sort_protid {
 	$_[0]->hdr->{ascconv}->{"lProtID"};
 }
 
+sub map_slicegroup {
+	my $self=shift;
+	# number of slice groups
+	my $lsize=$self->hdr->{asccconv}->{sGroupArray_lSize};
+	# size of each slice group
+	my $sg_size=pdl map {$self->hdr->{ascconv}->{"sGroupArray_asGroup_${_}__nSize"}||1} 
+		(0..$lsize-1_);
+	# start of each slice group
+	my $sg_start=pdl map {$self->hdr->{ascconv}->{"sGroupArray_asGroup_${_}__nLow"}||0} 
+		(0..$lsize-1);
+	# lowest and highest slice index mapped via SliceArray anAsc
+	my ($mi,$ma)= minmax pdl map{ $self->hdr->{ascconv}->{"sSliceArray_anAsc_${_}_"}||0}	
+		# 10 is slices
+		map {$_->(10,;-) } values( %{$self->hdr->{dim_idx}}); 
+	my $low=sclr which($sg_start==$mi);
+	my $high=sclr which($sg_start+$sg_size-1==$ma);
+	barf "Start and end don't match definition start: ($mi) $low, end: ($ma) $high for",
+		$self->hdr->{dcm_key},"!\n" if ($high != $low);
+	return $low,$sg_size,$sg_start; 
+}
+
 sub populate_header {
 	my $dicom =shift;
 	my $piddle=shift;
@@ -110,6 +131,7 @@ sub init_dims {
 	require PDL::Dims || return;
 	require PDL::Transform || return;
 	PDL::Dims->import(qw/is_equidistant dmin dmax vals hpar dinc initdim dimsize drot idx diminfo /);
+	say "init_dims: ",$self->hdr->{dcm_key};
 	say "init_dims: ",$self->hdr->{dicom}->{Rows} ;
 	say "init_dims: hpar ",hpar($self,'dicom','Rows');
 	PDL::Transform->import(qw/t_linear/);
@@ -128,8 +150,12 @@ sub init_dims {
 	say "hpar: pos ",hpar($self,'dicom','Image Position (Patient)'),
 		$self->hdr->{dicom}->{'Image Position (Patient)'};
 	say "init_dims: ",hpar($self,'dicom','Rows');
-	my $pos_d=(hpar($self,'dicom','Image Position (Patient)'))->flat->(:5)->reshape(3,2);
-	my $ir=hpar($self,'ascconv','sSliceArray_asSlice_0__dInPlaneRot') ||0; #radiant
+	my $pos_d;
+	#if (hpar($self,'ascconv','sSliceArray_lSize')>1) {
+		#$pos_d=(hpar($self,'dicom','Image Position (Patient)'))->flat->(:5)->reshape(3,2);
+	#} else {
+	$pos_d=(hpar($self,'dicom','Image Position (Patient)'))->(:2);
+	#my $ir=hpar($self,'ascconv','sSliceArray_asSlice_0__dInPlaneRot') ||0; #radiant
 	my $or=pdl(hpar($self,'dicom','Image Orientation (Patient)'))->flat->(:5)
 		->reshape(3,2)->transpose; #
 	my $pe_dir=hpar($self,'dicom','In-plane Phase Encoding Direction');
@@ -137,10 +163,10 @@ sub init_dims {
 # Rotation
 	my $srot=zeroes(3,3);
 	$srot(:1,).=$or;
-	$srot(2,;-).=norm($pos_d(,1;-)-$pos_d(,0;-));
+	$srot(2,;-).=crossp($or(1,;-),$or(0,;-));
 	$srot(2,;-).=pdl[0,0,1] unless any ($srot(2,;-));
 	#say "spatial rotation $srot";
-	$pos_d=$pos_d(,0;-);
+	#$pos_d=$pos_d(,0;-);
 # Calculate and initialise the transformation
 	my @ors=qw/Cor Sag Tra/;
 	$self->hdr->{orientation}=$ors[maximum_ind($srot(2;-))];  # normal vector lookup
@@ -181,28 +207,36 @@ sub init_dims {
 	my $fov=zeroes(3); # FOV
 	$fov(0).=$self->hdr->{ascconv}->{sSliceArray_asSlice_0__dReadoutFOV};
 	$fov(1).=$self->hdr->{ascconv}->{sSliceArray_asSlice_0__dPhaseFOV};
-	if ($pe =~ 'COL') {
+	#if ($pe =~ 'COL') {
 		$s(0).=$self->hdr->{dicom}->{Width}||$self->hdr->{dicom}->{Columns};
 		$s(1).=$self->hdr->{dicom}->{Height}||$self->hdr->{dicom}->{Rows};
 		say "COL! $s";
-	} else {
-		$s(1).=$self->hdr->{dicom}->{Width}||$self->hdr->{dicom}->{Columns};
-		$s(0).=$self->hdr->{dicom}->{Height}||$self->hdr->{dicom}->{Rows};
+	#} else {
+	#	$s(1).=$self->hdr->{dicom}->{Width}||$self->hdr->{dicom}->{Columns};
+	#	$s(0).=$self->hdr->{dicom}->{Height}||$self->hdr->{dicom}->{Rows};
 	#$fov(1).=$self->hdr->{ascconv}->{sSliceArray_asSlice_0__dReadoutFOV};
 	#$fov(0).=$self->hdr->{ascconv}->{sSliceArray_asSlice_0__dPhaseFOV};
-	}
+	#}
 	say "PE $pe $s $fov " ;
+	$s(2).=1;
 	$self->hdr->{'3d'}=1 if (($self->hdr->{dicom}->{MRAcquisitionType}||
 		hpar($self,'dicom','MR Acquisition Type')) eq '3D'); # 3D
 	if ($self->hdr->{'3d'}) {
 		$s(2).=$self->hdr->{ascconv}->{'sKSpace_lImagesPerSlab'} ;
 		$fov(2).=$self->hdr->{ascconv}->{sSliceArray_asSlice_0__dThickness};
 	} else {
-		$s(2).=$self->hdr->{ascconv}->{'sSliceArray_lSize'};
-		$fov(2).=$self->hdr->{dicom}->{"Spacing Between Slices"}*$s(2);
-		say "FOV $fov matrix $s";
+		$fov(2).=$self->hdr->{dicom}->{"Spacing Between Slices"}*$s(2)
+			||$self->hdr->{ascconv}->{'sSliceArray_asSlice_0__dThickness'};
 	}
-	$s(2).=1 if ($s(2)<1);
+	# Slice groups!
+	if ($$opt{split}) {
+		my ($sg,$size)=map_slicegroup($self);
+		$s(2)*=$size;
+	} else {
+		$s(2)*=$self->hdr->{ascconv}->{'sSliceArray_lSize'};
+	}	
+	#$s(2).=1 if ($s(2)<1);
+	say "FOV $fov matrix $s";
 	my $rot=identity($self->ndims);
 	my $inc_d=zeroes(3);
 	#say "Pixel Spacing", hpar($self,'dicom','Pixel Spacing');
@@ -211,10 +245,15 @@ sub init_dims {
 	#say $srot;
 	$rot(:2,:2).=$srot;
 	say "FOV $fov matrix $s, pixels $inc_d";
-	barf  "dims don't fit! $s vs. ",$self->shape->(:2) if any($self->shape->(:2)-$s);
+	barf $self->hdr->{dicom}->{'Series Number'},": dims don't fit! $s vs. ",$self->shape->(:2) if any($self->shape->(:2)-$s);
 	#say "Rot: $rot";
+	if ($pe eq 'COL') {
 	initdim($self,'x',size=>$s(0),min=>sclr($pos_d(0)),inc=>sclr($inc_d(0)),unit=>'mm');
 	initdim($self,'y',size=>$s(1),min=>sclr($pos_d(1)),inc=>sclr($inc_d(1)),unit=>'mm');
+	} else {
+	initdim($self,'x',size=>$s(0),min=>sclr($pos_d(0)),inc=>sclr($inc_d(0)),unit=>'mm');
+	initdim($self,'y',size=>$s(1),min=>sclr($pos_d(1)),inc=>sclr($inc_d(1)),unit=>'mm');
+	}
 	initdim($self,'z',size=>$s(2),rot=>$rot,min=>sclr($pos_d(2)),inc=>sclr($inc_d(2)),unit=>'mm',);
 	say "initdim for x,y,z done.";
 	say "after init dim ",(diminfo ($self));
