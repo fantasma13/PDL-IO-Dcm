@@ -75,22 +75,26 @@ sub sort_protid {
 sub map_slicegroup {
 	my $self=shift;
 	# number of slice groups
-	my $lsize=$self->hdr->{asccconv}->{sGroupArray_lSize};
+	my $lsize=$self->hdr->{ascconv}->{sGroupArray_lSize};
+	say "map: $lsize";
 	# size of each slice group
-	my $sg_size=pdl map {$self->hdr->{ascconv}->{"sGroupArray_asGroup_${_}__nSize"}||1} 
-		(0..$lsize-1_);
+	my $sg_size=pdl[ map {$self->hdr->{ascconv}->{"sGroupArray_asGroup_${_}__nSize"}||1} 
+		(0..$lsize-1_)];
 	# start of each slice group
-	my $sg_start=pdl map {$self->hdr->{ascconv}->{"sGroupArray_asGroup_${_}__nLow"}||0} 
-		(0..$lsize-1);
+	my $sg_start=pdl[ map {$self->hdr->{ascconv}->{"sGroupArray_asGroup_${_}__nLow"}||0} 
+		(0..$lsize-1)];
 	# lowest and highest slice index mapped via SliceArray anAsc
-	my ($mi,$ma)= minmax pdl map{ $self->hdr->{ascconv}->{"sSliceArray_anAsc_${_}_"}||0}	
+	my ($mi,$ma)= minmax pdl[ map{ $self->hdr->{ascconv}->{"sSliceArray_anAsc_${_}_"}||0}	
 		# 10 is slices
-		map {$_->(10,;-) } values( %{$self->hdr->{dim_idx}}); 
+		map {$_->(10,;-) } values( %{$self->hdr->{dim_idx}})]; 
+	say "size $sg_size start $sg_start mi, ma $mi $ma";
 	my $low=sclr which($sg_start==$mi);
 	my $high=sclr which($sg_start+$sg_size-1==$ma);
 	barf "Start and end don't match definition start: ($mi) $low, end: ($ma) $high for",
 		$self->hdr->{dcm_key},"!\n" if ($high != $low);
-	return $low,$sg_size,$sg_start; 
+	
+	say " $low,$sg_size($low),$sg_start($low)"; 
+	return $low,sclr ($sg_size($low)),sclr ($sg_start($low)); 
 }
 
 sub populate_header {
@@ -339,6 +343,10 @@ error, atm. Should handle duplicate exports
 
 provides support for PDL::Dims. Useful in combination with PDL::IO::Sereal to
 have a fully qualified data set.
+
+=head2 map_slicegroup
+
+returns the number, size and first slice of the current slice group.
 
 =head2 populate_header
 

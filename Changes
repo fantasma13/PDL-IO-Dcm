@@ -81,4 +81,10 @@ Revision history for PDL-IO-Dcm
 
 	* PDL::Dims in MRISiemens support improved, looks good so far, but needs testing.
 
+1.004	2017-2-22
 
+	* Added dcm_key and dim_idx to final stack as hashes
+
+	* PDL::Dims in MRISiemens support improved, especially slice groups, needs testing.
+
+	* Fixing 1-slice only case in init_dims, needs testing.
