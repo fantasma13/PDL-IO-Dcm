@@ -301,7 +301,7 @@ sub parse_dcms {
 					.=$dcm->hdr->{dicom}->{$key};
 			}
 			# preserve original info
-			print "IDX: ",$dcm->hdr->{dim_idx};
+			#print "IDX: ",$dcm->hdr->{dim_idx};
 			$header->{dim_idx}->{$dcm->hdr->{dcm_key}}=$dcm->hdr->{dim_idx};
 			$header->{dcm_key}->{join ('_',list $dcm->hdr->{dim_idx}->($order))}
 				=$dcm->hdr->{dcm_key};

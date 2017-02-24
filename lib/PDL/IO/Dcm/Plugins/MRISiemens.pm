@@ -76,7 +76,7 @@ sub map_slicegroup {
 	my $self=shift;
 	# number of slice groups
 	my $lsize=$self->hdr->{ascconv}->{sGroupArray_lSize};
-	say "map: $lsize";
+	#say "map: $lsize";
 	# size of each slice group
 	my $sg_size=pdl[ map {$self->hdr->{ascconv}->{"sGroupArray_asGroup_${_}__nSize"}||1} 
 		(0..$lsize-1_)];
@@ -87,13 +87,13 @@ sub map_slicegroup {
 	my ($mi,$ma)= minmax pdl[ map{ $self->hdr->{ascconv}->{"sSliceArray_anAsc_${_}_"}||0}	
 		# 10 is slices
 		map {$_->(10,;-) } values( %{$self->hdr->{dim_idx}})]; 
-	say "size $sg_size start $sg_start mi, ma $mi $ma";
+	#say "size $sg_size start $sg_start mi, ma $mi $ma";
 	my $low=sclr which($sg_start==$mi);
 	my $high=sclr which($sg_start+$sg_size-1==$ma);
 	barf "Start and end don't match definition start: ($mi) $low, end: ($ma) $high for",
 		$self->hdr->{dcm_key},"!\n" if ($high != $low);
 	
-	say " $low,$sg_size($low),$sg_start($low)"; 
+	#say " $low,$sg_size($low),$sg_start($low)"; 
 	return $low,sclr ($sg_size($low)),sclr ($sg_start($low)); 
 }
 
@@ -107,7 +107,7 @@ sub populate_header {
 	my @ret=$dicom->getValue('0029,1010','native')=~/ICE_Dims.{92}((_?(X|\d+)){13})/s; 
 	(my $str=$ret[0])=~s/X/1/e;
 	# to make this unique
-	say "Instance Number ",$dicom->getValue('InstanceNumber');
+	#say "Instance Number ",$dicom->getValue('InstanceNumber');
 	$piddle->hdr->{dcm_key}=$dicom->getValue('InstanceNumber').'_'.($dicom->getValue('0051,100f')||0);
 	my @d=split ('_',$str);
 	my $iced=pdl(short,@d); #badvalue(short)/er)]);
@@ -135,9 +135,9 @@ sub init_dims {
 	require PDL::Dims || return;
 	require PDL::Transform || return;
 	PDL::Dims->import(qw/is_equidistant dmin dmax vals hpar dinc initdim dimsize drot idx diminfo /);
-	say "init_dims: ",$self->hdr->{dcm_key};
-	say "init_dims: ",$self->hdr->{dicom}->{Rows} ;
-	say "init_dims: hpar ",hpar($self,'dicom','Rows');
+	#say "init_dims: ",$self->hdr->{dcm_key};
+	#say "init_dims: ",$self->hdr->{dicom}->{Rows} ;
+	#say "init_dims: hpar ",hpar($self,'dicom','Rows');
 	PDL::Transform->import(qw/t_linear/);
 	#say diminfo ($self),$self->hdr->{ascconv}->{sGroupArray_asGroup_1__nSize};
 # center=inner(rot*scale,dim/2)+Image Position (Patient)
@@ -150,10 +150,10 @@ sub init_dims {
 	$v(0,).=hpar($self,'ascconv','sSliceArray_asSlice_0__sPosition_dSag') ||0; #x
 	$v(1,).=hpar($self,'ascconv','sSliceArray_asSlice_0__sPosition_dCor') ||0; #y
 	$v(2,).=hpar($self,'ascconv','sSliceArray_asSlice_0__sPosition_dTra') ||0; #z
-	say $v;
-	say "hpar: pos ",hpar($self,'dicom','Image Position (Patient)'),
+	#say $v;
+	#say "hpar: pos ",hpar($self,'dicom','Image Position (Patient)'),
 		$self->hdr->{dicom}->{'Image Position (Patient)'};
-	say "init_dims: ",hpar($self,'dicom','Rows');
+	#say "init_dims: ",hpar($self,'dicom','Rows');
 	my $pos_d;
 	#if (hpar($self,'ascconv','sSliceArray_lSize')>1) {
 		#$pos_d=(hpar($self,'dicom','Image Position (Patient)'))->flat->(:5)->reshape(3,2);
@@ -177,7 +177,7 @@ sub init_dims {
 	my $pe=$self->hdr->{dicom}->{"In-plane Phase Encoding Direction"} 
 	||$self->hdr->{dicom}->{"InPlanePhaseEncodingDirection"}; 
 	if ($self->hdr->{orientation} eq 'Tra'){ # transversal slice
-		say $self->hdr->{orientation}. " Orientation";
+		#say $self->hdr->{orientation}. " Orientation";
 		$self->hdr->{sl}='z';
 		if ($pe eq 'COL'){
 			$self->hdr->{ro}='x'; 
@@ -214,14 +214,14 @@ sub init_dims {
 	#if ($pe =~ 'COL') {
 		$s(0).=$self->hdr->{dicom}->{Width}||$self->hdr->{dicom}->{Columns};
 		$s(1).=$self->hdr->{dicom}->{Height}||$self->hdr->{dicom}->{Rows};
-		say "COL! $s";
+		#say "COL! $s";
 	#} else {
 	#	$s(1).=$self->hdr->{dicom}->{Width}||$self->hdr->{dicom}->{Columns};
 	#	$s(0).=$self->hdr->{dicom}->{Height}||$self->hdr->{dicom}->{Rows};
 	#$fov(1).=$self->hdr->{ascconv}->{sSliceArray_asSlice_0__dReadoutFOV};
 	#$fov(0).=$self->hdr->{ascconv}->{sSliceArray_asSlice_0__dPhaseFOV};
 	#}
-	say "PE $pe $s $fov " ;
+	#say "PE $pe $s $fov " ;
 	$s(2).=1;
 	$self->hdr->{'3d'}=1 if (($self->hdr->{dicom}->{MRAcquisitionType}||
 		hpar($self,'dicom','MR Acquisition Type')) eq '3D'); # 3D
@@ -240,7 +240,7 @@ sub init_dims {
 		$s(2)*=$self->hdr->{ascconv}->{'sSliceArray_lSize'};
 	}	
 	#$s(2).=1 if ($s(2)<1);
-	say "FOV $fov matrix $s";
+	#say "FOV $fov matrix $s";
 	my $rot=identity($self->ndims);
 	my $inc_d=zeroes(3);
 	#say "Pixel Spacing", hpar($self,'dicom','Pixel Spacing');
@@ -248,7 +248,7 @@ sub init_dims {
 	$inc_d(2).=$fov(2,0)/$s(2,0);
 	#say $srot;
 	$rot(:2,:2).=$srot;
-	say "FOV $fov matrix $s, pixels $inc_d";
+	#say "FOV $fov matrix $s, pixels $inc_d";
 	barf $self->hdr->{dicom}->{'Series Number'},": dims don't fit! $s vs. ",$self->shape->(:2) if any($self->shape->(:2)-$s);
 	#say "Rot: $rot";
 	if ($pe eq 'COL') {
@@ -259,19 +259,19 @@ sub init_dims {
 	initdim($self,'y',size=>$s(1),min=>sclr($pos_d(1)),inc=>sclr($inc_d(1)),unit=>'mm');
 	}
 	initdim($self,'z',size=>$s(2),rot=>$rot,min=>sclr($pos_d(2)),inc=>sclr($inc_d(2)),unit=>'mm',);
-	say "initdim for x,y,z done.";
-	say "after init dim ",(diminfo ($self));
-	say "size $s min $pos_d inc $inc_d rot $rot";
+	#say "initdim for x,y,z done.";
+	#say "after init dim ",(diminfo ($self));
+	#say "size $s min $pos_d inc $inc_d rot $rot";
 	idx($self,'x',dimsize($self,'x')/2);
 	idx($self,'y',dimsize($self,'y')/2);
 	idx($self,'z',dimsize($self,'z')/2);
-	say "orientation : ",hpar($self,'orientation'),diminfo ($self);
+	#say "orientation : ",hpar($self,'orientation'),diminfo ($self);
 	# other dimensions
 	for my $n (3..$#{$$opt{Dimensions}}) { # x,y,z are handled above
 		my $dim=$$opt{Dimensions}->[$n];
 		print "Init Dim $dim - $n\n";
 		my $str=('(0),' x ($n-2)).','.('(0),' x ($#{$$opt{Dimensions}}-$n));
-		say "$str ";
+		#say "$str ";
 		if ($dim eq 'Echo') {
 		#	my $str=('(0),' x ($n-2)).','.('(0),' x ($#{$$opt{Dimensions}}-$n));
 			initdim ($self,'echo',unit=>'us',
@@ -282,10 +282,10 @@ sub init_dims {
 			my $t=hpar($self,'dicom','Acquisition Time')->($str);
 			if (is_equidistant($t,0.003)) {
 				initdim ($self,'t',unit=>'s',min=>sclr($t(0)),max=>sclr($t(-1)));
-				say "T min ",dmin($self,'t')," max ",dmax($self,'t')," inc ",dinc($self,'t'), $t;
+				#say "T min ",dmin($self,'t')," max ",dmax($self,'t')," inc ",dinc($self,'t'), $t;
 			} else {
 				initdim ($self,'t',unit=>'s',vals=>[list($t)]);
-				say "T values :",vals ($self,'t');
+				#say "T values :",vals ($self,'t');
 			}
 		} elsif ($dim =~ /Channel/) {
 			my $coil=hpar($self,'dicom','0051,100f')||'combined';
@@ -298,16 +298,16 @@ sub init_dims {
 			initdim ($self,'set'); # This can be anything, no further info easily available
 		} elsif ($dim =~ /Phase/) {
 			my $t=hpar($self,'dicom','Trigger Time');
-			say $t->info;
+			#say $t->info;
 			$t=$t($str);
-			say $t;
+			#say $t;
 			if (is_equidistant($t)) {
 				initdim ($self,'cphase',unit=>'ms',min=>sclr($t(0)),max=>sclr($t(-1)));
-				say "Trigger min ",dmin($self,'cphase')," max ",dmax($self,'cphase')," inc ",dinc($self,'cphase'), $t;
-				say "Trigger ",vals ($self,'cphase');
+				#say "Trigger min ",dmin($self,'cphase')," max ",dmax($self,'cphase')," inc ",dinc($self,'cphase'), $t;
+				#say "Trigger ",vals ($self,'cphase');
 			} else {
 				initdim ($self,'cphase',unit=>'ms',vals=>[list($t)]);
-				say "Trigger values :",vals ($self,'cphase');
+				#say "Trigger values :",vals ($self,'cphase');
 			}
 		}
 	}
@@ -315,8 +315,8 @@ sub init_dims {
 	$mat=$mat->transpose ;#if ($pe_dir =~ /COL/);
 	#say $mat;
 	my $xf=t_linear(matrix=>$mat,post=>$pos_d(,0;-));
-	say "inc ",dinc ($self);
-	say diminfo($self);
+	#say "inc ",dinc ($self);
+	##say diminfo($self);
 	hpar($self,'init_transform','matrix',$mat);
 	hpar($self,'init_transform','post',$pos_d(,0;-));
 #barf "initdim fails!" unless ($#{dimname($self)}>2);
