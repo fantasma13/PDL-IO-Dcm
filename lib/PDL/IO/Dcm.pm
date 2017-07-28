@@ -3,7 +3,7 @@
 package PDL::IO::Dcm;
 
 
-our $VERSION = '1.004';
+our $VERSION = '1.005';
 
 
 use PDL;
@@ -215,7 +215,9 @@ sub load_dcm_dir {
 		}
 		$iced++;
 		$dims{$pid}.=$dims{$pid}*($dims{$pid}>=$iced)+$iced*($iced>$dims{$pid});
-		die "This key is not unique! $pid, ",$p->hdr->{dcm_key} 
+		die "This key is not unique! $pid, ",$p->hdr->{dcm_key}
+			,' ',$p->hdr->{dicom}->{'Series Number'}
+			,' ',$p->hdr->{dicom}->{'Incstance  Number'}
 			if (ref($dcms{$pid}->{$p->hdr->{dcm_key}}) eq 'PDL') ;
 		$dcms{$pid}->{$p->hdr->{dcm_key}}=$p; 
 	}

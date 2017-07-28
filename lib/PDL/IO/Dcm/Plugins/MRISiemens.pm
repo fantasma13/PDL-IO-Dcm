@@ -107,7 +107,8 @@ sub populate_header {
 	my @ret=$dicom->getValue('0029,1010','native')=~/ICE_Dims.{92}((_?(X|\d+)){13})/s; 
 	(my $str=$ret[0])=~s/X/1/e;
 	# to make this unique
-	#say "Instance Number ",$dicom->getValue('InstanceNumber');
+	say "Series Number ",$dicom->getValue('SeriesNumber'),
+	"Instance Number ",$dicom->getValue('InstanceNumber');
 	$piddle->hdr->{dcm_key}=$dicom->getValue('InstanceNumber').'_'.($dicom->getValue('0051,100f')||0);
 	my @d=split ('_',$str);
 	my $iced=pdl(short,@d); #badvalue(short)/er)]);
