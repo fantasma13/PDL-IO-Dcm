@@ -18,7 +18,7 @@ use Exporter;
 #use PDL::IO::Nifti;
 use strict;
 #use PDL::IO::Sereal;
-#use 5.10.0;
+use 5.10.0;
 
 our @ISA=qw/Exporter/;
 our @EXPORT_OK=qw/read_dcm parse_dcms load_dcm_dir printStruct/;
@@ -310,6 +310,9 @@ sub parse_dcms {
 			$header->{dicom}->{'Image Orientation (Patient)'}
 				->(,list $dcm->hdr->{dim_idx}->($order))
 				.=pdl (split /\\/,$dcm->hdr->{dicom}->{'Image Orientation (Patient)'});
+			#say split /\\/,$dcm->hdr->{dicom}->{'Pixel Spacing'};
+			#say $header->{dicom}->{'Pixel Spacing'}->(,list($dcm->hdr->{dim_idx}->{$order}));
+			
 			$header->{dicom}->{'Pixel Spacing'}
 				->(,list $dcm->hdr->{dim_idx}->($order))
 				.=pdl (split /\\/,$dcm->hdr->{dicom}->{'Pixel Spacing'});
@@ -331,21 +334,27 @@ sub parse_dcms {
 			}
 		}
 		my $ind=whichND(maxover maxover ($data{$pid})); # actually populated fields!
-		for my $ax (0..$ind->dim(0)-1) {
-			$data{$pid}=$data{$pid}->dice_axis($ax+2,$ind($ax)->uniq); # compact the data!
-			$header->{dicom}->{'Image Position (Patient)'}
+		say "Data set $pid, dims $ind ", $data{$pid}->info;
+		if (any $ind) {
+			for my $ax (0..$ind->dim(0)-1) {
+				#use PDL::NiceSlice;
+				say "Axis $ax, ",$ind($ax;-);
+				$data{$pid}=$data{$pid}->dice_axis($ax+2,$ind($ax;-)->uniq); # compact the data!
+					$header->{dicom}->{'Image Position (Patient)'}
 				=$header->{dicom}->{'Image Position (Patient)'}->dice_axis($ax+1,$ind($ax)->uniq); 
-		$header->{dicom}->{'Image Orientation (Patient)'}
-			=$header->{dicom}->{'Image Orientation (Patient)'}->dice_axis($ax+1,$ind($ax)->uniq);
-		$header->{dicom}->{'Pixel Spacing'}
-			=$header->{dicom}->{'Pixel Spacing'}->dice_axis($ax+1,$ind($ax)->uniq);
-			for my $key (@key_list) {
-				$header->{dicom}->{$key}=$header->{dicom}->{$key}->dice_axis($ax,$ind($ax)->uniq);
-			}
-			for my $val (values %{$header->{diff}}) {
-				$val=$val->dice_axis($ax,$ind($ax)->uniq) if (ref ($val) =~ /PDL/);
+				$header->{dicom}->{'Image Orientation (Patient)'}
+				=$header->{dicom}->{'Image Orientation (Patient)'}->dice_axis($ax+1,$ind($ax)->uniq);
+				$header->{dicom}->{'Pixel Spacing'}
+				=$header->{dicom}->{'Pixel Spacing'}->dice_axis($ax+1,$ind($ax)->uniq);
+				for my $key (@key_list) {
+					$header->{dicom}->{$key}=$header->{dicom}->{$key}->dice_axis($ax,$ind($ax)->uniq);
+				}
+				for my $val (values %{$header->{diff}}) {
+					$val=$val->dice_axis($ax,$ind($ax)->uniq) if (ref ($val) =~ /PDL/);
+				}
 			}
 		}
+		say "done.";
 		$header->{dicom}->{'Image Position (Patient)'}
 			=clump_data($header->{dicom}->{'Image Position (Patient)'},1,$$opt{clump_dims});
 		$header->{dicom}->{'Image Orientation (Patient)'}
