@@ -3,7 +3,7 @@
 package PDL::IO::Dcm;
 
 
-our $VERSION = '1.005';
+our $VERSION = '1.006';
 
 
 use PDL;
@@ -18,7 +18,7 @@ use Exporter;
 #use PDL::IO::Nifti;
 use strict;
 #use PDL::IO::Sereal;
-use 5.10.0;
+#use 5.10.0;
 
 our @ISA=qw/Exporter/;
 our @EXPORT_OK=qw/read_dcm parse_dcms load_dcm_dir printStruct/;
@@ -333,13 +333,13 @@ sub parse_dcms {
 					$dcm->hdr->{dicom}->{$field};
 			}
 		}
-		my $ind=whichND(maxover maxover ($data{$pid})); # actually populated fields!
-		say "Data set $pid, dims $ind ", $data{$pid}->info;
+		my $ind=whichND(maxover maxover maxover ($data{$pid})); # actually populated fields!
+		#say "Data set $pid, dims $ind ", $data{$pid}->info;
 		if (any $ind) {
 			for my $ax (0..$ind->dim(0)-1) {
 				#use PDL::NiceSlice;
-				say "Axis $ax, ",$ind($ax;-);
-				$data{$pid}=$data{$pid}->dice_axis($ax+2,$ind($ax;-)->uniq); # compact the data!
+				#say "Axis $ax, ",$ind($ax;-);
+				$data{$pid}=$data{$pid}->dice_axis($ax+3,$ind($ax;-)->uniq); # compact the data!
 					$header->{dicom}->{'Image Position (Patient)'}
 				=$header->{dicom}->{'Image Position (Patient)'}->dice_axis($ax+1,$ind($ax)->uniq); 
 				$header->{dicom}->{'Image Orientation (Patient)'}
@@ -354,7 +354,7 @@ sub parse_dcms {
 				}
 			}
 		}
-		say "done.";
+		#say "done.";
 		$header->{dicom}->{'Image Position (Patient)'}
 			=clump_data($header->{dicom}->{'Image Position (Patient)'},1,$$opt{clump_dims});
 		$header->{dicom}->{'Image Orientation (Patient)'}
