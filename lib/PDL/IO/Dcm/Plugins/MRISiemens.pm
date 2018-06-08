@@ -276,11 +276,11 @@ sub init_dims {
 		if ($dim eq 'Echo') {
 		#	my $str=('(0),' x ($n-2)).','.('(0),' x ($#{$$opt{Dimensions}}-$n));
 			initdim ($self,'echo',unit=>'us',
-			vals=>[list (hpar($self,'dicom','Echo Time')->($str))]);
+			vals=>[list (pdl(hpar($self,'dicom','Echo Time'))->($str))]);
 		}
 		elsif ($dim eq 'T') {
 		#	my $str=('(0),' x ($n-2)).','.('(0),' x ($#{$$opt{Dimensions}}-$n));
-			my $t=hpar($self,'dicom','Acquisition Time')->($str);
+			my $t=pdl(hpar($self,'dicom','Acquisition Time'))->($str);
 			if (is_equidistant($t,0.003)) {
 				initdim ($self,'t',unit=>'s',min=>sclr($t(0)),max=>sclr($t(-1)));
 				#say "T min ",dmin($self,'t')," max ",dmax($self,'t')," inc ",dinc($self,'t'), $t;

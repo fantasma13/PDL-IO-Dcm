@@ -10,6 +10,7 @@ use PDL;
 use PDL::NiceSlice;
 use List::MoreUtils; # qw{any};
 use Data::Dumper;
+use PDL::IO::Dumper;
 use DicomPack::IO::DicomReader;
 use Storable qw/dclone/;
 use DicomPack::DB::DicomTagDict qw/getTag getTagDesc/;
@@ -286,11 +287,13 @@ sub parse_dcms {
 		$header->{diff}={};
 		$header->{Dimensions}=$$opt{Dimensions}; 
 		for my $key (@key_list) {
+			next unless chomp $key;
 			$header->{dicom}->{$key}=zeroes(list $dims($order));
 		}
 		$header->{dicom}->{'Image Orientation (Patient)'}=zeroes(6,list $dims($order));
 		$header->{dicom}->{'Image Position (Patient)'}=zeroes(3,list $dims($order));
 		$header->{dicom}->{'Pixel Spacing'}=zeroes(2,list $dims($order));
+		#say $header->{dicom}->{'Pixel Spacing'};
 		$header->{dim_idx}={};
 		$header->{dcm_key}={};
 		for my $dcm (values %stack) {
@@ -299,6 +302,7 @@ sub parse_dcms {
 					.=$dcm->transpose;}
 			else {$data{$pid}->(,,list $dcm->hdr->{dim_idx}->($order)).=$dcm;}
 			for my $key (@key_list) {
+				next unless chomp $key;
 				$header->{dicom}->{$key}->(list $dcm->hdr->{dim_idx}->($order))
 					.=$dcm->hdr->{dicom}->{$key};
 			}
@@ -313,6 +317,7 @@ sub parse_dcms {
 			#say split /\\/,$dcm->hdr->{dicom}->{'Pixel Spacing'};
 			#say $header->{dicom}->{'Pixel Spacing'}->(,list($dcm->hdr->{dim_idx}->{$order}));
 			
+			#say $header->{dicom}->{'Pixel Spacing'};
 			$header->{dicom}->{'Pixel Spacing'}
 				->(,list $dcm->hdr->{dim_idx}->($order))
 				.=pdl (split /\\/,$dcm->hdr->{dicom}->{'Pixel Spacing'});
@@ -336,21 +341,26 @@ sub parse_dcms {
 		my $ind=whichND(maxover maxover maxover ($data{$pid})); # actually populated fields!
 		#say "Data set $pid, dims $ind ", $data{$pid}->info;
 		if (any $ind) {
+		#say $header->{dicom}->{'Pixel Spacing'}->info;
 			for my $ax (0..$ind->dim(0)-1) {
 				#use PDL::NiceSlice;
 				#say "Axis $ax, ",$ind($ax;-);
 				$data{$pid}=$data{$pid}->dice_axis($ax+3,$ind($ax;-)->uniq); # compact the data!
 					$header->{dicom}->{'Image Position (Patient)'}
-				=$header->{dicom}->{'Image Position (Patient)'}->dice_axis($ax+1,$ind($ax)->uniq); 
+				=$header->{dicom}->{'Image Position (Patient)'}->dice_axis($ax+2,$ind($ax)->uniq); 
 				$header->{dicom}->{'Image Orientation (Patient)'}
-				=$header->{dicom}->{'Image Orientation (Patient)'}->dice_axis($ax+1,$ind($ax)->uniq);
+				=$header->{dicom}->{'Image Orientation (Patient)'}->dice_axis($ax+2,$ind($ax)->uniq);
+		#say $header->{dicom}->{'Pixel Spacing'}->info;
+		#say "$ax+1 ",$ind($ax)->uniq;
 				$header->{dicom}->{'Pixel Spacing'}
-				=$header->{dicom}->{'Pixel Spacing'}->dice_axis($ax+1,$ind($ax)->uniq);
+				=$header->{dicom}->{'Pixel Spacing'}->dice_axis($ax+2,$ind($ax)->uniq);
 				for my $key (@key_list) {
-					$header->{dicom}->{$key}=$header->{dicom}->{$key}->dice_axis($ax,$ind($ax)->uniq);
+					next unless chomp $key;
+					#say "key $key $ax, ",$ind($ax);
+					$header->{dicom}->{$key}=$header->{dicom}->{$key}->dice_axis($ax+1,$ind($ax)->uniq);
 				}
 				for my $val (values %{$header->{diff}}) {
-					$val=$val->dice_axis($ax,$ind($ax)->uniq) if (ref ($val) =~ /PDL/);
+					$val=$val->dice_axis($ax+1,$ind($ax)->uniq) if (ref ($val) =~ /PDL/);
 				}
 			}
 		}
@@ -359,9 +369,11 @@ sub parse_dcms {
 			=clump_data($header->{dicom}->{'Image Position (Patient)'},1,$$opt{clump_dims});
 		$header->{dicom}->{'Image Orientation (Patient)'}
 			=clump_data($header->{dicom}->{'Image Orientation (Patient)'},0,$$opt{clump_dims});
+		#say $header->{dicom}->{'Pixel Spacing'};
 		$header->{dicom}->{'Pixel Spacing'}
 			=clump_data($header->{dicom}->{'Pixel Spacing'},0,$$opt{clump_dims});
 		for my $key (@key_list) {
+			next unless chomp($key);
 			$header->{dicom}->{$key}=clump_data($header->{dicom}->{$key},0,$$opt{clump_dims});
 		}
 		for my $val (values %{$header->{diff}}) {
@@ -370,6 +382,12 @@ sub parse_dcms {
 		$data{$pid}=clump_data($data{$pid},2,$$opt{clump_dims}); 
 		die "Dimensions don't add up! @{$$opt{Dimensions}}, $#{$$opt{Dimensions}} ",
 			$data{$pid}->info if ($data{$pid}->ndims != $#{$$opt{Dimensions}}+1);
+		#print "cloing $pid\n";
+		for my $key (keys %{$header->{dicom}}) {
+			#say "key $key";
+			#say sdump ($$header{dicom}->{$key});
+			#dclone($$header{$key});
+		}
 		$data{$pid}->sethdr(dclone($header));
 	} # for my $pid ...
 	\%data;
