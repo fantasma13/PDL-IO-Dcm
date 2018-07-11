@@ -287,7 +287,7 @@ sub parse_dcms {
 		$header->{diff}={};
 		$header->{Dimensions}=$$opt{Dimensions}; 
 		for my $key (@key_list) {
-			next unless chomp $key;
+			#next unless chomp $key;
 			$header->{dicom}->{$key}=zeroes(list $dims($order));
 		}
 		$header->{dicom}->{'Image Orientation (Patient)'}=zeroes(6,list $dims($order));
@@ -302,7 +302,11 @@ sub parse_dcms {
 					.=$dcm->transpose;}
 			else {$data{$pid}->(,,list $dcm->hdr->{dim_idx}->($order)).=$dcm;}
 			for my $key (@key_list) {
-				next unless chomp $key;
+				#say "Key: $key ";
+				#next unless (chomp ($key));
+				#say $header->{dicom}->{$key}->info;
+				#say "key $key: ",list($dcm->hdr->{dim_dix}->{$order}), "  = ",
+					$dcm->hdr->{dicom}->{$key};
 				$header->{dicom}->{$key}->(list $dcm->hdr->{dim_idx}->($order))
 					.=$dcm->hdr->{dicom}->{$key};
 			}
@@ -355,7 +359,7 @@ sub parse_dcms {
 				$header->{dicom}->{'Pixel Spacing'}
 				=$header->{dicom}->{'Pixel Spacing'}->dice_axis($ax+2,$ind($ax)->uniq);
 				for my $key (@key_list) {
-					next unless chomp $key;
+					#next unless chomp $key;
 					#say "key $key $ax, ",$ind($ax);
 					$header->{dicom}->{$key}=$header->{dicom}->{$key}->dice_axis($ax+1,$ind($ax)->uniq);
 				}
@@ -373,7 +377,7 @@ sub parse_dcms {
 		$header->{dicom}->{'Pixel Spacing'}
 			=clump_data($header->{dicom}->{'Pixel Spacing'},0,$$opt{clump_dims});
 		for my $key (@key_list) {
-			next unless chomp($key);
+			#next unless chomp($key);
 			$header->{dicom}->{$key}=clump_data($header->{dicom}->{$key},0,$$opt{clump_dims});
 		}
 		for my $val (values %{$header->{diff}}) {

@@ -243,6 +243,7 @@ sub init_dims {
 	#$s(2).=1 if ($s(2)<1);
 	#say "FOV $fov matrix $s";
 	my $rot=identity($self->ndims);
+	## TODO Pixel_spacing * Image_Orientation - it's a vector!! 
 	my $inc_d=zeroes(3);
 	#say "Pixel Spacing", hpar($self,'dicom','Pixel Spacing');
 	$inc_d(:1).=hpar($self,'dicom','Pixel Spacing')->(:1;-);
@@ -260,6 +261,7 @@ sub init_dims {
 	initdim($self,'y',size=>$s(1),min=>sclr($pos_d(1)),inc=>sclr($inc_d(1)),unit=>'mm');
 	}
 	initdim($self,'z',size=>$s(2),rot=>$rot,min=>sclr($pos_d(2)),inc=>sclr($inc_d(2)),unit=>'mm',);
+	## TODO end ##
 	#say "initdim for x,y,z done.";
 	#say "after init dim ",(diminfo ($self));
 	#say "size $s min $pos_d inc $inc_d rot $rot";
@@ -295,10 +297,11 @@ sub init_dims {
 			} else {
 				initdim ($self,'channel',vals=>[$coil, size=>1]);
 			}
+			#say vals($self,'channel');
 		} elsif ($dim =~ /Set/) {
 			initdim ($self,'set'); # This can be anything, no further info easily available
 		} elsif ($dim =~ /Phase/) {
-			my $t=hpar($self,'dicom','Trigger Time');
+			my $t=pdl(hpar($self,'dicom','Trigger Time')||0);
 			#say $t->info;
 			$t=$t($str);
 			#say $t;
