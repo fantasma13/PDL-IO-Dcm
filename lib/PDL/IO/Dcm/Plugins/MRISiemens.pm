@@ -4,7 +4,7 @@ use Exporter;
 use PDL;
 use PDL::NiceSlice;
 use strict;
-#use 5.10.0;
+use 5.10.0;
 
 
 our @ISA=qw/Exporter/;
@@ -107,9 +107,9 @@ sub populate_header {
 	my @ret=$dicom->getValue('0029,1010','native')=~/ICE_Dims.{92}((_?(X|\d+)){13})/s; 
 	(my $str=$ret[0])=~s/X/1/e;
 	# to make this unique
-	#say "Series Number ",$dicom->getValue('SeriesNumber'),
-	#, Instance Number ",$dicom->getValue('InstanceNumber');
-	$piddle->hdr->{dcm_key}=$dicom->getValue('InstanceNumber').'_'.($dicom->getValue('0051,100f','native')||0);
+	say "Series Number ",$dicom->getValue('SeriesNumber'),
+	"Instance Number ",$dicom->getValue('InstanceNumber');
+	$piddle->hdr->{dcm_key}=$dicom->getValue('InstanceNumber').'_'.($dicom->getValue('0051,100f')||0);
 	my @d=split ('_',$str);
 	my $iced=pdl(short,@d); #badvalue(short)/er)]);
 	$iced--;
@@ -243,7 +243,6 @@ sub init_dims {
 	#$s(2).=1 if ($s(2)<1);
 	#say "FOV $fov matrix $s";
 	my $rot=identity($self->ndims);
-	## TODO Pixel_spacing * Image_Orientation - it's a vector!! 
 	my $inc_d=zeroes(3);
 	#say "Pixel Spacing", hpar($self,'dicom','Pixel Spacing');
 	$inc_d(:1).=hpar($self,'dicom','Pixel Spacing')->(:1;-);
@@ -261,7 +260,6 @@ sub init_dims {
 	initdim($self,'y',size=>$s(1),min=>sclr($pos_d(1)),inc=>sclr($inc_d(1)),unit=>'mm');
 	}
 	initdim($self,'z',size=>$s(2),rot=>$rot,min=>sclr($pos_d(2)),inc=>sclr($inc_d(2)),unit=>'mm',);
-	## TODO end ##
 	#say "initdim for x,y,z done.";
 	#say "after init dim ",(diminfo ($self));
 	#say "size $s min $pos_d inc $inc_d rot $rot";
@@ -278,11 +276,11 @@ sub init_dims {
 		if ($dim eq 'Echo') {
 		#	my $str=('(0),' x ($n-2)).','.('(0),' x ($#{$$opt{Dimensions}}-$n));
 			initdim ($self,'echo',unit=>'us',
-			vals=>[list (pdl(hpar($self,'dicom','Echo Time'))->($str))]);
+			vals=>[list (hpar($self,'dicom','Echo Time')->($str))]);
 		}
 		elsif ($dim eq 'T') {
 		#	my $str=('(0),' x ($n-2)).','.('(0),' x ($#{$$opt{Dimensions}}-$n));
-			my $t=pdl(hpar($self,'dicom','Acquisition Time'))->($str);
+			my $t=hpar($self,'dicom','Acquisition Time')->($str);
 			if (is_equidistant($t,0.003)) {
 				initdim ($self,'t',unit=>'s',min=>sclr($t(0)),max=>sclr($t(-1)));
 				#say "T min ",dmin($self,'t')," max ",dmax($self,'t')," inc ",dinc($self,'t'), $t;
@@ -293,15 +291,14 @@ sub init_dims {
 		} elsif ($dim =~ /Channel/) {
 			my $coil=hpar($self,'dicom','0051,100f')||'combined';
 			if ($self->dim($n)>1) {
-				initdim ($self,'channel',vals=>[hpar($self,'dicom','0051,100f')]); #->flat->(:2)]);
+				initdim ($self,'channel',vals=>[hpar($self,'dicom','0051,100f')->flat->(:2)]);
 			} else {
 				initdim ($self,'channel',vals=>[$coil, size=>1]);
 			}
-			#say vals($self,'channel');
 		} elsif ($dim =~ /Set/) {
 			initdim ($self,'set'); # This can be anything, no further info easily available
 		} elsif ($dim =~ /Phase/) {
-			my $t=pdl(hpar($self,'dicom','Trigger Time')||0);
+			my $t=hpar($self,'dicom','Trigger Time');
 			#say $t->info;
 			$t=$t($str);
 			#say $t;
