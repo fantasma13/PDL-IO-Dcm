@@ -3,7 +3,7 @@
 package PDL::IO::Dcm;
 
 
-our $VERSION = '1.006';
+our $VERSION = '1.007';
 
 
 use PDL;
@@ -122,10 +122,13 @@ sub read_dcm {
 	my $file=shift;
 	my $opt=shift; #options
 	my $dcm=DicomPack::IO::DicomReader->new($file) || return; 
+	my $data=$dcm->getValue('PixelData','native');
+	unless (defined ($data)) {
+		$data=$dcm->getValue ('7fe1,1010','raw'); # spectrum
+		return (undef ) unless defined $data;
+	}
 	my $h=unpack('S',substr ($dcm->getValue('Rows','native'),3,2));
 	my $w=unpack('S',substr ($dcm->getValue('Columns','native'),3,2));
-	my $data=$dcm->getValue('PixelData','native');
-	return (undef ) unless defined $data;
 	my $datatype= (substr($data,0,2));
 	my $pdl=zeroes(ushort,$w,$h) if ($datatype =~/OW|XX/); 
 	$pdl->make_physical;
