@@ -123,20 +123,28 @@ sub read_dcm {
 	my $opt=shift; #options
 	my $dcm=DicomPack::IO::DicomReader->new($file) || return; 
 	my $data=$dcm->getValue('PixelData','native');
+	my ($h,$w)=1;
+	my $pdl;
 	unless (defined ($data)) {
-		$data=$dcm->getValue ('7fe1,1010','raw'); # spectrum
+		$pdl=pdl(unpack('f*',substr($dcm->getValue ('7fe1,1010','native'),3))); # spectrum
+		delete $dcm->hdr->{raw_dicom}->{'7fe1,1010'} if defined $data; # Pixel data
 		return (undef ) unless defined $data;
+	} else {
+		$h=unpack('S',substr ($dcm->getValue('Rows','native'),3,2));
+		$w=unpack('S',substr ($dcm->getValue('Columns','native'),3,2));
+		my $datatype= (substr($data,0,2));
+		print "Data type $datatype \n";
+		if ($datatype =~/OW|XX/){ 
+			$pdl=zeroes(ushort,$w,$h) ;
+		}
+		$pdl->make_physical;
+		${$pdl->get_dataref}=substr($data,3);
+		$pdl->upd_data;
 	}
-	my $h=unpack('S',substr ($dcm->getValue('Rows','native'),3,2));
-	my $w=unpack('S',substr ($dcm->getValue('Columns','native'),3,2));
-	my $datatype= (substr($data,0,2));
-	my $pdl=zeroes(ushort,$w,$h) if ($datatype =~/OW|XX/); 
-	$pdl->make_physical;
-	${$pdl->get_dataref}=substr($data,3);
-	$pdl->upd_data;
 	$pdl->hdr->{raw_dicom}=$dcm->getDicomField;
+	delete $pdl->hdr->{raw_dicom}->{'7fe0,0010'} if defined $data; # Pixel data
+	delete $pdl->hdr->{raw_dicom}->{'7fe1,0010'} unless defined $data; # Pixel data
 	no PDL::NiceSlice;
-	delete $pdl->hdr->{raw_dicom}->{'7fe0,0010'}; # Pixel data
 	for my $id (keys %{$pdl->hdr->{raw_dicom}}) {
 		my $tag=getTag($id); # field tag for id, if present, store under tag
 		my $value=unpack_field($id,$tag,$dcm->getValue($id,'native')); 
